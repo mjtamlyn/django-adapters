@@ -2,17 +2,16 @@
 Components
 ==========
 
-This document describes all components or "steps" the new Django serializers
-will have. They are closely related to existing concepts of ``django.forms`` and
+This document describes all components or "steps" that django-serial-forms has.
+They are closely related to existing concepts of ``django.forms`` and
 ``django.core.serializers`` and borrows ideas from Django Rest Framework (DRF).
 
 Each section explains its scope and what exactly it should and shouldn't do and
-know about. It also tries to include a note about the specific step is
-currently realized in Django or DRF and gives hints how that step could be
-implemented in the future.
+know about. It also explains how the specific step currently works in Django or
+DRF and gives hints how that step could be implemented in the future.
 
 The components are supposed to be independent from each other and it should be
-easy to customize one of it without having to touch or even braking any other
+easy to customize one of it without having to touch or even breaking any other
 component. Ideally you should also be able to replace a component entirely, e.g.
 with an external library.
 
@@ -24,20 +23,23 @@ while still being generic enough to make reuse of code easier.
 Construction
 ============
 
-The construction step determines which fields will be used in the following
-steps. It always precedes the other steps and can't be skipped. Also once this
-step is finished the list of fields that is available to the other steps is
-frozen and *can't be changed* anymore. This means that if you need a different
-set of forms you will have to run this step again. Still, it should be easy to
-modify the set of fields on a per-request basis.
+The construction step determines the shape and all the pieces of the resulting
+serializer. It always precedes the other steps and can't be skipped. Also once
+this step is finished the list of fields that is available to the other steps is
+frozen and *can't be changed* anymore. This means that if you need a differently
+shaped serializer you will have to run this step again. Still, it should be easy
+to modify the set of fields on a per-request basis.
 
 Validation of any kind, loading and storing data is *not* part of this step, it
-merely constructs a data structure to be used by any of the other steps.
+merely constructs an *immutable* data structure that contains and describes all
+the used components. It basically collects all information about all other steps
+for a particular serializer and combines that.
 
 How it is currently done
 ------------------------
 
-The list of fields in a form can be specified declaratively:
+The list of fields in a form or a DRF serializer is generally specified
+declaratively:
 
 .. code-block:: python
 
@@ -50,8 +52,8 @@ The list of fields in a form can be specified declaratively:
 In the background this currently retains the order of the fields however that
 should not be necessary in the construction phase.
 
-It is also possible to override ``Form.__init__()`` and manually set or modify
-``self.fields``.
+The best and recommended way to dynamically change the fields of a form is to
+override ``Form.__init__()`` and manually set or modify ``self.fields``.
 
 How it could be done
 --------------------
@@ -68,17 +70,24 @@ Another solution is to use a factory function that can take a variable number of
 arguments and returns a new class similar to how ``formset_factory()`` currently
 works.
 
+In essence there should be a API that creates the underlying data structure that
+in turn can be used by different "helper"-APIs like a
+``DeclarativeMetaClassSerializerConstructor`` or a
+``FactoryFunctionSerializerConstructor``. The underlying data structure itself
+should also have an API to easily create slightly modified (i.e., add this
+field, remove that field, add this validator) clones of itself.
+
 
 Existing Data
 =============
 
 All data that is provided by the system in one way or another and was not input
 by the user is called "existing data". This includes but is not limited to field
-defaults and initial data. This step describes the process of collecting the
-existing data from all sources. The goal is to have an API that makes it
-possible to easily add more sources of existing data and to customize it on a
-per-request basis, e.g. "fetch the existing data from source A if user is admin,
-otherwise fetch it from source B".
+defaults, initial data and model instances. This step describes the process of
+collecting the existing data from all sources. The goal is to have an API that
+makes it possible to easily add more sources of existing data and to customize
+it on a per-request basis, e.g. "fetch the existing data from source A if user
+is admin, otherwise fetch it from source B".
 
 How it is currently done
 ------------------------
@@ -100,6 +109,14 @@ It is also possible to pass a dictionary of initial data to ``Form.__init__()``:
 
     my_initial_data = {'title': 'Enter your awesome title here!'}
     form = BlogPostForm(initial=my_initial_data)
+
+
+When using a model form existing database values can also be loaded by passing a
+model instance as ``instance`` argument:
+
+.. code-block:: python
+
+    form = MyModelForm(instance=existing_instance)
 
 
 How it could be done
@@ -145,16 +162,19 @@ How it could be done
 
 At first the universal data structure has to be defined. It should not be
 opinionated about how the input data looked like and ideally should be usable
-not only with new data but with existing data as well.
+not only with new data but with existing data as well. It should be universal in
+a way that is independent of how the serializer received the data, i.e. the type
+of the data returned from a JSON serializer should be similar or identical to
+the one returned from an HTML form serializer.
 
 Then an API must be established that lets you modify the loading of existing or
 new data easily.
 
 
-Validation
-==========
+Cleaning
+========
 
-The validation step comprises validating field values (e.g. field ``name`` must
+The cleaning step comprises validating field values (e.g. field ``name`` must
 have between 5 and 10 alphanumerical characters or field ``publish_date`` must
 be in the future) and cross field validation (e.g. if field A is set field B
 must be unset and vice versa, or field ``first_number`` and field
@@ -165,9 +185,10 @@ should not fetch additional data itself. It should however be possible for the
 validation component to be influenced by the environment (a user's permission,
 current time, etc.) and change its logic based on that.
 
-Additionally a validator should also be allowed to change values in a structural
-way to make coercing of values possible. Examples are casting a string to an
-integer or normalizing a unicode string.
+Besides validation every validation step is also allowed to change the data in a
+structural way to make coercing of values possible. Examples are casting a
+string to an integer or normalizing a unicode string. Validation combine with
+coercing values is called "cleaning".
 
 
 How it is currently done
@@ -240,6 +261,12 @@ Cross field validation is made possible by overriding ``Form.clean()``:
             return data
 
 
+If you use a form's cleaned data to create a new model then model validation
+will also take place. It can be customized by passing a list of validators to a
+model field just like it is possible with form fields and also by overriding a
+model's ``clean()`` method.
+
+
 How it could be done
 --------------------
 
@@ -249,17 +276,18 @@ There are several libraries that explicitly deal with validation in Django.
 Rendering
 =========
 
-Whenever the universal data structure or a subset thereof should be send or
-displayed to a user or an external service it must first pass the rendering
-step. It takes the universal data structure and converts it to something that
-can then be used by users (e.g. an HTML form) or services (e.g. a JSON object).
+Serializer renderers receive the underlying data structure and the current state
+of the serializer data and present them to the outside world. This could be as
+an HTML form, a JSON object or something completely different.
 
 How it is currently done
 ------------------------
 
 Django uses the ``Widget`` class to render HTML form input elements. There is
 also the ``BoundField`` class that can be used in templates to customize how
-they are displayed. It is returned by ``Form.__getitem__()``:
+they are displayed. Several options like ``help_text`` or ``verbose_name`` are
+handed down from the form field to the widget or the bound field. A bound field
+can be retrieved with ``Form.__getitem__()``:
 
 .. code-block:: python
 

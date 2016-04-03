@@ -5,7 +5,7 @@ The Python API for Django's forms framework was designed over 10 years ago.
 It's a beautiful declarative API which proved so popular it has been copied by
 many other Django (and Python) projects, such as Django Rest Framework and
 Marshmallow. Unfortunately, it suffers from a few major weaknesses. Most
-notably, the declarative API makes it hard and ugly to customise on a
+notably, the declarative API makes it hard and ugly to customize on a
 per-request basis, and the resulting object is deeply nested and entangled.
 This makes it hard to introspect, and hard to swap certain layers of the
 process.

@@ -9,7 +9,9 @@ Welcome to Django serial forms's documentation!
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+    :maxdepth: 2
+
+    components
 
 
 

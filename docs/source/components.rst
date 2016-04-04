@@ -111,8 +111,9 @@ It is also possible to pass a dictionary of initial data to ``Form.__init__()``:
     form = BlogPostForm(initial=my_initial_data)
 
 
-When using a model form existing database values can also be loaded by passing a
-model instance as ``instance`` argument:
+
+Model instance data can also be loaded by passing it to a ``ModelForm`` with
+the ``instance`` argument:
 
 .. code-block:: python
 
@@ -187,7 +188,7 @@ current time, etc.) and change its logic based on that.
 
 Besides validation every validation step is also allowed to change the data in a
 structural way to make coercing of values possible. Examples are casting a
-string to an integer or normalizing a unicode string. Validation combine with
+string to an integer or normalizing a unicode string. Validation combined with
 coercing values is called "cleaning".
 
 

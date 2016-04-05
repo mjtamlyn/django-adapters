@@ -262,10 +262,11 @@ Cross field validation is made possible by overriding ``Form.clean()``:
             return data
 
 
-If you use a form's cleaned data to create a new model then model validation
-will also take place. It can be customized by passing a list of validators to a
-model field just like it is possible with form fields and also by overriding a
-model's ``clean()`` method.
+It is also possible to validate on the model level by calling ``full_clean()``
+on the model instance. This calls all validator functions that were passed to
+the model field just like for form fields. It is also possible to override
+``clean()`` on the model. Furthermore ``Model.full_clean()`` is called from
+a model form's ``full_clean()`` method.
 
 
 How it could be done

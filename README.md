@@ -1,5 +1,5 @@
-Django serial forms
-===================
+Django adapters
+===============
 
 The Python API for Django's forms framework was designed over 10 years ago.
 It's a beautiful declarative API which proved so popular it has been copied by

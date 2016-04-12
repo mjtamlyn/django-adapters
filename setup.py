@@ -5,7 +5,7 @@ setup(
     name='django-adapters',
     py_modules=['adapters'],
     version='0.1',
-    description='Constructible, introspectable adaption for serialization and forms',
+    description='Constructible, introspectable adapters for serialization and forms',
     author='Marc Tamlyn & Friends',
     author_email='marc.tamlyn@gmail.com',
     url='https://github.com/mjtamlyn/django-adapters',

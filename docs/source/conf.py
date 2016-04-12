@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Django serial forms documentation build configuration file, created by
+# Django adapters documentation build configuration file, created by
 # sphinx-quickstart on Sun Apr  3 09:38:05 2016.
 #
 # This file is execfile()d with the current directory set to its
@@ -49,7 +49,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'Django serial forms'
+project = 'Django adapters'
 copyright = '2016, Marc Tamlyn & Friends'
 author = 'Marc Tamlyn & Friends'
 
@@ -124,7 +124,7 @@ html_theme = 'alabaster'
 
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
-#html_title = 'Django serial forms v0.1'
+#html_title = 'Django adapters v0.1'
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
 #html_short_title = None
@@ -206,7 +206,7 @@ html_static_path = ['_static']
 #html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'Djangoserialformsdoc'
+htmlhelp_basename = 'Djangoadaptersdoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -228,7 +228,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'Djangoserialforms.tex', 'Django serial forms Documentation',
+    (master_doc, 'Djangoadapters.tex', 'Django adapters Documentation',
      'Marc Tamlyn \\& Friends', 'manual'),
 ]
 
@@ -258,7 +258,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'djangoserialforms', 'Django serial forms Documentation',
+    (master_doc, 'djangoadapters', 'Django adapters Documentation',
      [author], 1)
 ]
 
@@ -272,8 +272,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'Djangoserialforms', 'Django serial forms Documentation',
-     author, 'Djangoserialforms', 'One line description of project.',
+    (master_doc, 'Djangoadapters', 'Django adapters Documentation',
+     author, 'Djangoadapters', 'One line description of project.',
      'Miscellaneous'),
 ]
 

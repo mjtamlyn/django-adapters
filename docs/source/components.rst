@@ -2,7 +2,7 @@
 Components
 ==========
 
-This document describes all components or "steps" that django-serial-forms has.
+This document describes all components or "steps" that django-adapters has.
 They are closely related to existing concepts of ``django.forms`` and
 ``django.core.serializers`` and borrows ideas from Django Rest Framework (DRF).
 

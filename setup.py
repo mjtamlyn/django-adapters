@@ -2,13 +2,13 @@ from setuptools import setup
 
 
 setup(
-    name='django-serial-forms',
-    py_modules=['serial_forms'],
+    name='django-adapters',
+    py_modules=['adapters'],
     version='0.1',
-    description='Constructible, introspectable serializers and forms',
+    description='Constructible, introspectable adapters for serialization and forms',
     author='Marc Tamlyn & Friends',
     author_email='marc.tamlyn@gmail.com',
-    url='https://github.com/mjtamlyn/django-serial-forms',
+    url='https://github.com/mjtamlyn/django-adapters',
     license='BSD',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',

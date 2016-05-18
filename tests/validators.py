@@ -6,7 +6,8 @@ from adapters.validators import (
 
 
 class ValidatorsTest(TestCase):
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
         class UsernameSchema(Schema):
             inputs = {'username'}
             outputs = {'username', 'username_normalized'}
@@ -33,9 +34,9 @@ class ValidatorsTest(TestCase):
                 username_in_email,
             ]
 
-        self.UsernameSchema = UsernameSchema
-        self.EMailSchema = EMailSchema
-        self.RegistrationSchema = RegistrationSchema
+        cls.UsernameSchema = UsernameSchema
+        cls.EMailSchema = EMailSchema
+        cls.RegistrationSchema = RegistrationSchema
 
     def test_simple_validation(self):
         schema = self.UsernameSchema()

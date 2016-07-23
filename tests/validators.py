@@ -26,13 +26,10 @@ class ValidatorsTest(TestCase):
         class RegistrationSchema(Schema):
             depends = [UsernameSchema, EMailSchema]
 
-            def username_in_email(self):
-                if self.username_normalized not in self.email:
+            @staticmethod
+            def validate_username_in_email(data, **kwargs):
+                if data['username_normalized'] not in data['email']:
                     raise ValidationError("E-mail must contain username", field='email')
-
-            validators = [
-                username_in_email,
-            ]
 
         cls.UsernameSchema = UsernameSchema
         cls.EMailSchema = EMailSchema

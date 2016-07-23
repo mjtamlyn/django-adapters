@@ -74,6 +74,22 @@ class ValidatorsTest(TestCase):
         self.assertFalse(validator.is_valid)
         self.assertIn(ValidationError("E-mail must contain username"), validator['email'].errors)
 
+    def test_context_data(self):
+        class LoggedInUserSchema(self.UsernameSchema):
+            @staticmethod
+            def validate_username_is_not_user(data, user, **kwargs):
+                if data['username_normalized'] == user.username:
+                    raise ValidationError("Already logged in with user", field='username')
+
+        class User(object):
+            def __init__(self, username):
+                self.username = username
+
+        schema = LoggedInUserSchema()
+        validator = schema.validate({'username': 'foobar'}, User('barfoo'))
+        self.assertFalse(validator.is_valid)
+        self.assertIn(ValidationError("Already logged in with user"), validator['username'].errors)
+
     def test_adapter_compatibility(self):
         adapter = Adapter()  # XXX: mystery internal representation
         # here the schema could update the adapter with its inputs and outputs

@@ -12,8 +12,7 @@ Contents:
     :maxdepth: 2
 
     components
-
-
+    research
 
 Indices and tables
 ==================

@@ -1,8 +1,8 @@
 from .exceptions import ValidationError
 
 
-class ValidatorListNode(object):
-    def __init__(self, inputs=None, outputs=None, validators=None, name=None):
+class ValidationNode(object):
+    def __init__(self, *, inputs=None, outputs=None, name=None):
         if inputs is None:
             self.inputs = frozenset()
         else:
@@ -11,18 +11,15 @@ class ValidatorListNode(object):
             self.outputs = frozenset()
         else:
             self.outputs = frozenset(outputs)
-        if validators is None:
-            validators = []
-        self.validators = list(validators)
         self.name = name
         self._dependencies = set()
         self._dependants = set()
 
     def __repr__(self):
         return (
-            '{}(inputs={!r}, outputs={!r}, validators={!r}, name={!r})'
+            '{}(inputs={!r}, outputs={!r}, name={!r})'
             ''.format(self.__class__.__name__, self.inputs, self.outputs,
-                      self.validators, self.name)
+                      self.name)
         )
 
     def add_dependency(self, node):
@@ -42,6 +39,22 @@ class ValidatorListNode(object):
     @property
     def dependants(self):
         return self._dependants
+
+    def validate(self, data, **kwargs):
+        raise NotImplementedError
+
+
+class ValidatorListNode(ValidationNode):
+    def __init__(self, *, validators=None, **kwargs):
+        super().__init__(**kwargs)
+        self.validators = list(validators)
+
+    def __repr__(self):
+        return (
+            '{}(inputs={!r}, outputs={!r}, validators={!r}, name={!r})'
+            ''.format(self.__class__.__name__, self.inputs, self.outputs,
+                      self.validators, self.name)
+        )
 
     def validate(self, data, **kwargs):
         if not self.inputs.issubset(data.keys()):

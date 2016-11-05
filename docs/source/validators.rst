@@ -8,10 +8,10 @@ Validation Nodes
 
 .. module:: adapters.validators
 
-The main components of validation are the :class:`validation nodes
-<DeclarativeValidationNode>`. Each node contains a bit of validation logic that
-operates on a predefined set of data. Multiple nodes can be combined to a
-:class:`~adapters.schema.Schema` to build more complex validation scenarios.
+The main components of validation are instances of :class:`ValidationNode`. Each
+node contains a bit of validation logic that operates on a predefined set of
+data.  Multiple nodes can be combined to a :class:`~adapters.schema.Schema` to
+build more complex validation scenarios.
 
 Example: User Validation
 ------------------------
@@ -116,13 +116,29 @@ validation methods itself::
 Reference
 ---------
 
+.. class:: ValidationNode
+
+.. attribute:: ValidationNode.name
+
+.. attribute:: ValidationNode.inputs
+
+.. attribute:: ValidationNode.outputs
+
+.. attribute:: ValidationNode.dependencies
+
+.. attribute:: ValidationNode.dependants
+
+.. method:: ValidationNode.add_dependency(node)
+
+.. method:: ValidationNode.add_dependant(node)
+
+.. method:: VaidationNode.validate(data, **kwargs)
+
 .. class:: DeclarativeValidationNode
 
-.. attribute:: DeclarativeValidationNode.inputs
-
-.. attribute:: DeclarativeValidationNode.outputs
-
 .. attribute:: DeclarativeValidationNode.depends
+
+.. method:: DeclarativeValidationNode.validate(data, **kwargs)
 
 
 Schema
@@ -134,3 +150,7 @@ Reference
 ---------
 
 .. class:: Schema
+
+.. method:: Schema.validate(data, **kwargs)
+
+.. method:: Schema.revalidate(result, updated_data, **kwargs)

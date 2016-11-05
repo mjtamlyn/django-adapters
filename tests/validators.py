@@ -107,3 +107,60 @@ class ValidatorsTest(TestCase):
             'unexpected username', 'username'
         )
         self.assertTrue(schema.validate({'username': 'foo'}, user='foo').is_valid)
+
+    def test_revalidate(self):
+        log = set()
+
+        class ValidateUsername(DeclarativeValidationNode):
+            inputs = {'username'}
+
+            @staticmethod
+            def validate_username(data, **kwargs):
+                if len(data['username']) > 10:
+                    log.add('username fail')
+                    raise ValidationError('username is too long', 'username')
+                log.add('username')
+
+        class ValidateEmail(DeclarativeValidationNode):
+            inputs = {'email'}
+
+            @staticmethod
+            def validate_email(data, **kwargs):
+                if '@' not in data['email']:
+                    log.add('email fail')
+                    raise ValidationError('invalid e-mail address', 'email')
+                log.add('email')
+
+        class ValidateUser(DeclarativeValidationNode):
+            depends = {ValidateUsername, ValidateEmail}
+
+            @staticmethod
+            def validate_user(data, **kwargs):
+                if data['username'] not in data['email']:
+                    log.add('user fail')
+                    raise ValidationError('e-mail must contain username', 'email')
+                log.add('user')
+
+        schema = Schema(ValidateUser)
+        result = schema.validate({'username': 'foouser', 'email': 'foo'})
+        self.assertEqual(log, {'username', 'email fail'})
+
+        log = set()
+        schema.revalidate(result, {'email': 'bar'})
+        self.assertEqual(log, {'email fail'})
+
+        log = set()
+        schema.revalidate(result, {'username': 'baruser', 'email': 'bar'})
+        self.assertEqual(log, {'username', 'email fail'})
+
+        log = set()
+        schema.revalidate(result, {'username': 'q' * 20, 'email': 'bar@qqq'})
+        self.assertEqual(log, {'username fail', 'email'})
+
+        log = set()
+        schema.revalidate(result, {'email': 'foo@qqq'})
+        self.assertEqual(log, {'email', 'user fail'})
+
+        log = set()
+        schema.revalidate(result, {'email': 'foouser@qqq'})
+        self.assertEqual(log, {'email', 'user'})

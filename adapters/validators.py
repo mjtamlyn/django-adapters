@@ -60,6 +60,12 @@ class ValidatorListNode(object):
         return data
 
 
+NODE_ATTRS = {
+    'name', 'inputs', 'outputs', 'validators', 'add_dependency',
+    'add_dependant', 'dependencies', 'dependants', 'validate'
+}
+
+
 DeclarativeValidationNode = None
 
 
@@ -77,7 +83,7 @@ class DeclarativeValidationNodeMeta(type):
         elif hasattr(cls, 'depends'):
             inputs = set()
             for dependency in cls.depends:
-                inputs.update(dependency._node.outputs)
+                inputs.update(dependency.outputs)
             node_kwargs['inputs'] = inputs
 
         if hasattr(cls, 'outputs'):
@@ -118,22 +124,11 @@ class DeclarativeValidationNodeMeta(type):
         else:
             return cls._node == other
 
-    def add_dependency(cls, node):
-        cls._node.add_dependency(node)
-
-    def add_dependant(cls, node):
-        cls._node.add_dependant(node)
-
-    @property
-    def dependencies(cls):
-        return cls._node.dependencies
-
-    @property
-    def dependants(cls):
-        return cls._node.dependants
-
-    def validate(cls, data, **kwargs):
-        return cls._node.validate(data, **kwargs)
+    def __getattr__(cls, name):
+        if name in NODE_ATTRS:
+            return getattr(cls._node, name)
+        else:
+            return super().__getattr__(name)
 
 
 class DeclarativeValidationNode(object, metaclass=DeclarativeValidationNodeMeta):

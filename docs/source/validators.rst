@@ -55,22 +55,41 @@ take at least the parameter ``data``. This parameter is a dictionary that
 contains at least all the keys specified in
 :attr:`~DeclarativeValidationNode.inputs`. The method can then raise a
 :class:`~adapters.exceptions.ValidationError` if the validation should fail.
-When data is validated on the node, all validation methods are called in the
-order they were specified. We can test that like this::
 
-    >>> ValidateUsername.validate({})
-    Traceback (most recent call last):
-        ...
-    adapters.exceptions.ValidationError: ('missing data: username', None)
-    >>> ValidateUsername.validate({'username': 'bob'})
-    Traceback (most recent call last):
-        ...
-    adapters.exceptions.ValidationError: ('username must have at least 5 characters', 'username')
-    >>> ValidateUsername.validate({'username': 'robert'})
-    Traceback (most recent call last):
-        ...
-    adapters.exceptions.ValidationError: ('username must start with capital letter', 'username')
-    >>> ValidateUsername.validate({'username': 'Robert'})
+To actually run the validation on a node, we first have to create a tree. This
+is necessary even if there is only one node! The
+:meth:`~ValidationNode.make_tree()` method does exactly that::
+
+    >>> tree = ValidateUsername.make_tree()
+
+Now we can use the tree to validate data by calling the
+:meth:`~ValidationTree.validate()` method. It returns a
+:class:`ValidationResult` that tells us if the validation failed::
+
+    >>> result = tree.validate({})
+    >>> result.is_valid
+    False
+    >>> result.errors
+    [adapters.exceptions.ValidationError: ('missing data: username', None)]
+
+    >>> result = tree.validate({'username': 'bob'})
+    >>> result.is_valid
+    False
+    >>> result.errors
+    [adapters.exceptions.ValidationError: ('username must have at least 5 characters', 'username')]
+
+    >>> result = tree.validate({'username': 'robert'})
+    >>> result.is_valid
+    False
+    >>> result.errors
+    [adapters.exceptions.ValidationError: ('username must start with capital letter', 'username')]
+
+    >>> result = tree.validate({'username': 'Robert'})
+    >>> result.is_valid
+    True
+    >>> result.errors
+    []
+    >>> result.data
     {'username': 'Robert'}
 
 A validation method can also modify ("coerce") the input data by either
@@ -90,12 +109,14 @@ names of validation methods that change the data should start with ``coerce``::
 We can check that our node now actually generates the upper case version of the
 username::
 
-    >>> UppercaseUsername.validate({'username': 'foobar'})
+    >>> tree = UppercaseUsername.make_tree()
+    >>> result = tree.validate({'username': 'foobar'})
+    >>> result.data
     {'username': 'foobar', 'username_uppercase': 'FOOBAR'}
 
 Now, the real power in validation nodes lies in the fact that they can *depend*
-on each other. This enables you to have a hierarchy of many different of nodes
-that can fail independently. Let's now create a new validation node
+on each other. This enables you to have a hierarchy of many different nodes that
+can fail independently. Let's now create a new validation node
 ``ValidatePerson`` that depends on ``ValidateUsername`` and also defines some
 validation methods itself::
 
@@ -113,6 +134,53 @@ validation methods itself::
                     'username'
                 )
 
+Again, we have to create a tree and then call the
+:meth:`~ValidationTree.validate()` method on it::
+
+    >>> tree = ValidatePerson.make_tree()
+    >>> result = tree.validate({'username': 'FB1234', 'name': 'Foo Bar'})
+    >>> result.is_valid
+    True
+
+Of course, it gets more interesting when the validation fails::
+
+    >>> result = tree.validate({'username': 'fb1234'})
+    >>> result.is_valid
+    False
+    >>> result.errors
+    [adapters.exceptions.ValidationError('username must start with capital letter', 'username')]
+
+Here the validation on the node ``ValidateUsername`` failed and generated the
+error you see. Because the first node failed and ``ValidatePerson`` depends on
+it, ``ValidatePerson``'s validation was not executed. ::
+
+    >>> result = tree.validate({'username': 'FB1234'})
+    >>> result.is_valid
+    False
+    >>> result.errors
+    [adapters.exceptions.ValidationError('missing data: name', None)]
+
+Now the validation on ``ValidateUsername`` was successful, so the validation
+continued to ``ValidateName`` and then failed there. Another way to "retry"
+validation is to use the :meth:`~ValidationTree.revalidate()` method. In the
+following example we use `result` from the previous one::
+
+    >>> result = tree.revalidate(result, {'name': 'Bar Baz'})
+    >>> result.is_valid
+    False
+    >>> result.errors
+    [adapters.exceptions.ValidationError('username must contain initials of the name', 'username')]
+
+In that example using :meth:`~ValidationTree.revalidate()` actually skipped the
+``ValidateUsername`` node entirely since it was already validated before. And
+finally we can make the result valid again::
+
+    >>> result = tree.revalidate(result, {'name': 'Foo Bar'})
+    >>> result.is_valid
+    True
+    >>> result.data
+    {'username': 'FB1234', 'name': 'Foo Bar'}
+
 
 Reference
 ---------
@@ -126,6 +194,8 @@ Reference
 .. attribute:: ValidationNode.outputs
 
 .. attribute:: ValidationNode.dependencies
+
+.. method:: ValidationNode.make_tree()
 
 .. method:: VaidationNode.validate(data, **kwargs)
 
@@ -149,3 +219,7 @@ Reference
 .. method:: ValidationTree.validate(data, **kwargs)
 
 .. method:: ValidationTree.revalidate(result, updated_data, **kwargs)
+
+.. class:: ValidationResult
+
+.. attribute:: ValidationResult.is_valid

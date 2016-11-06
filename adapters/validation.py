@@ -21,6 +21,9 @@ class ValidationNode(object):
                       self.name)
         )
 
+    def make_tree(self):
+        return ValidationTree(self)
+
     def validate(self, data, **kwargs):
         raise NotImplementedError
 
@@ -58,7 +61,9 @@ DeclarativeValidationNode = None
 
 
 class DeclarativeValidationNodeMeta(type):
-    NODE_ATTRS = frozenset({'name', 'inputs', 'outputs', 'dependencies', 'validate', 'validators'})
+    NODE_ATTRS = frozenset(
+        {'name', 'inputs', 'outputs', 'dependencies', 'make_tree', 'validate', 'validators'}
+    )
     DECLARATIVE_ATTRS = frozenset({'inputs', 'outputs', 'dependencies'})
 
     def __new__(mcs, name, bases, attrs):

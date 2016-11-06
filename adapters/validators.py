@@ -2,18 +2,17 @@ from .exceptions import ValidationError
 
 
 class ValidationNode(object):
-    def __init__(self, *, inputs=None, outputs=None, name=None):
-        if inputs is None:
-            self.inputs = frozenset()
-        else:
-            self.inputs = frozenset(inputs)
-        if outputs is None:
-            self.outputs = frozenset()
-        else:
-            self.outputs = frozenset(outputs)
+    def __init__(self, *, name=None, inputs=frozenset(), outputs=frozenset(), dependencies=frozenset()):
         self.name = name
-        self._dependencies = set()
-        self._dependants = set()
+        self.inputs = frozenset(inputs)
+        self.outputs = frozenset(outputs)
+        self.dependencies = frozenset(dependencies)
+
+        if not self.inputs:
+            for dep in self.dependencies:
+                self.inputs = self.inputs.union(dep.inputs)
+        if not self.outputs:
+            self.outputs = self.inputs
 
     def __repr__(self):
         return (
@@ -21,24 +20,6 @@ class ValidationNode(object):
             ''.format(self.__class__.__name__, self.inputs, self.outputs,
                       self.name)
         )
-
-    def add_dependency(self, node):
-        if node not in self._dependencies:
-            self._dependencies.add(node)
-            node.add_dependant(self)
-
-    def add_dependant(self, node):
-        if node not in self._dependants:
-            self._dependants.add(node)
-            node.add_dependency(self)
-
-    @property
-    def dependencies(self):
-        return self._dependencies
-
-    @property
-    def dependants(self):
-        return self._dependants
 
     def validate(self, data, **kwargs):
         raise NotImplementedError
@@ -73,36 +54,31 @@ class ValidatorListNode(ValidationNode):
         return data
 
 
-NODE_ATTRS = {
-    'name', 'inputs', 'outputs', 'validators', 'add_dependency',
-    'add_dependant', 'dependencies', 'dependants', 'validate'
-}
-
-
 DeclarativeValidationNode = None
 
 
 class DeclarativeValidationNodeMeta(type):
-    def __init__(cls, name, bases, attrs):
-        super().__init__(name, bases, attrs)
+    NODE_ATTRS = frozenset({'name', 'inputs', 'outputs', 'dependencies', 'validate', 'validators'})
+    DECLARATIVE_ATTRS = frozenset({'inputs', 'outputs', 'dependencies'})
 
+    def __new__(mcs, name, bases, attrs):
         if DeclarativeValidationNode is None:
             # creating DeclarativeValidationNode class
-            return
+            return super().__new__(mcs, name, bases, attrs)
 
         node_kwargs = {'name': name}
-        if hasattr(cls, 'inputs'):
-            node_kwargs['inputs'] = cls.inputs
-        elif hasattr(cls, 'depends'):
-            inputs = set()
-            for dependency in cls.depends:
-                inputs.update(dependency.outputs)
-            node_kwargs['inputs'] = inputs
+        declarative_attrs = {}
+        for attr in mcs.DECLARATIVE_ATTRS:
+            node_kwargs[attr] = set()
+            if attr in attrs:
+                declarative_attrs[attr] = attrs.pop(attr)
+        cls = super().__new__(mcs, name, bases, attrs)
+        cls._declarative_attrs = declarative_attrs
 
-        if hasattr(cls, 'outputs'):
-            node_kwargs['outputs'] = cls.outputs
-        else:
-            node_kwargs['outputs'] = node_kwargs['inputs']
+        for base in reversed(cls.__mro__):
+            if '_declarative_attrs' in base.__dict__:
+                for attr in mcs.DECLARATIVE_ATTRS:
+                    node_kwargs[attr].update(base._declarative_attrs.get(attr, frozenset()))
 
         validators = []
         if hasattr(cls, 'validators'):
@@ -115,10 +91,7 @@ class DeclarativeValidationNodeMeta(type):
         node_kwargs['validators'] = validators
 
         cls._node = ValidatorListNode(**node_kwargs)
-
-        if hasattr(cls, 'depends'):
-            for dependency in cls.depends:
-                cls._node.add_dependency(dependency)
+        return cls
 
     def __call__(cls):
         raise TypeError("can't instantiate {}".format(cls.__name__))
@@ -138,7 +111,7 @@ class DeclarativeValidationNodeMeta(type):
             return cls._node == other
 
     def __getattr__(cls, name):
-        if name in NODE_ATTRS:
+        if name in cls.NODE_ATTRS:
             return getattr(cls._node, name)
         else:
             return super().__getattr__(name)

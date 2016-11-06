@@ -71,7 +71,7 @@ class ValidatorsTest(TestCase):
                     raise ValidationError('invalid e-mail address', 'email')
 
         class ValidateEmailDomain(DeclarativeValidationNode):
-            depends = [ValidateEmail]
+            dependencies = [ValidateEmail]
 
             @staticmethod
             def validate_email_domain(data, **kwargs):
@@ -132,7 +132,7 @@ class ValidatorsTest(TestCase):
                 log.add('email')
 
         class ValidateUser(DeclarativeValidationNode):
-            depends = {ValidateUsername, ValidateEmail}
+            dependencies = {ValidateUsername, ValidateEmail}
 
             @staticmethod
             def validate_user(data, **kwargs):

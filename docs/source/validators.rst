@@ -99,7 +99,7 @@ that can fail independently. Let's now create a new validation node
 validation methods itself::
 
     class ValidatePerson(DeclarativeValidationNode):
-        depends = ValidateUsername
+        dependencies = [ValidateUsername]
         inputs = {'username', 'name'}
 
         @staticmethod
@@ -126,17 +126,13 @@ Reference
 
 .. attribute:: ValidationNode.dependencies
 
-.. attribute:: ValidationNode.dependants
-
-.. method:: ValidationNode.add_dependency(node)
-
-.. method:: ValidationNode.add_dependant(node)
-
 .. method:: VaidationNode.validate(data, **kwargs)
 
-.. class:: DeclarativeValidationNode
+.. class:: ValidatorListNode
 
-.. attribute:: DeclarativeValidationNode.depends
+.. method:: ValidatorListNode.validate(data, **kwargs)
+
+.. class:: DeclarativeValidationNode
 
 .. method:: DeclarativeValidationNode.validate(data, **kwargs)
 

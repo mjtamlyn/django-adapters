@@ -2,7 +2,7 @@
 Validation
 ==========
 
-.. module:: adapters.validators
+.. module:: adapters.validation
 
 
 Validation Nodes
@@ -11,7 +11,7 @@ Validation Nodes
 The main components of validation are instances of :class:`ValidationNode`. Each
 node contains a bit of validation logic that operates on a predefined set of
 data. Multiple nodes can be combined to a
-:class:`~adapters.validators.ValidationTree` to build more complex validation
+:class:`~adapters.validation.ValidationTree` to build more complex validation
 scenarios.
 
 Example: User Validation

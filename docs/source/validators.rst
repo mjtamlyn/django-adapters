@@ -2,16 +2,17 @@
 Validation
 ==========
 
+.. module:: adapters.validators
+
 
 Validation Nodes
 ================
 
-.. module:: adapters.validators
-
 The main components of validation are instances of :class:`ValidationNode`. Each
 node contains a bit of validation logic that operates on a predefined set of
-data.  Multiple nodes can be combined to a :class:`~adapters.schema.Schema` to
-build more complex validation scenarios.
+data. Multiple nodes can be combined to a
+:class:`~adapters.validators.ValidationTree` to build more complex validation
+scenarios.
 
 Example: User Validation
 ------------------------
@@ -137,16 +138,14 @@ Reference
 .. method:: DeclarativeValidationNode.validate(data, **kwargs)
 
 
-Schema
-======
-
-.. module:: adapters.schema
+Validation Tree
+===============
 
 Reference
 ---------
 
-.. class:: Schema
+.. class:: ValidationTree
 
-.. method:: Schema.validate(data, **kwargs)
+.. method:: ValidationTree.validate(data, **kwargs)
 
-.. method:: Schema.revalidate(result, updated_data, **kwargs)
+.. method:: ValidationTree.revalidate(result, updated_data, **kwargs)

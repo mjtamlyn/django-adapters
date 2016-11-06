@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from adapters import DeclarativeValidationNode, Schema, ValidationError
+from adapters import DeclarativeValidationNode, ValidationError, ValidationTree
 
 
 class ValidatorsTest(TestCase):
@@ -9,16 +9,16 @@ class ValidatorsTest(TestCase):
         error = ValidationError(message, field)
         self.assertIn(error, result.errors)
 
-    def _test_username_schema(self, schema):
+    def _test_username_tree(self, tree):
         self.assertHasValidationError(
-            schema.validate({}),
+            tree.validate({}),
             'missing data: username'
         )
         self.assertHasValidationError(
-            schema.validate({'username': 'foobar'}),
+            tree.validate({'username': 'foobar'}),
             'invalid username', 'username'
         )
-        result = schema.validate({'username': 'admin'})
+        result = tree.validate({'username': 'admin'})
         self.assertTrue(result.is_valid)
         self.assertEqual(result.data, {'username': 'admin'})
 
@@ -32,8 +32,8 @@ class ValidatorsTest(TestCase):
             outputs = {'username'}
             validators = [validate_username]
 
-        schema = Schema(ValidateUsername)
-        self._test_username_schema(schema)
+        tree = ValidationTree(ValidateUsername)
+        self._test_username_tree(tree)
 
     def test_staticmethod_validator(self):
         class ValidateUsername(DeclarativeValidationNode):
@@ -45,8 +45,8 @@ class ValidatorsTest(TestCase):
                 if data['username'] != 'admin':
                     raise ValidationError('invalid username', 'username')
 
-        schema = Schema(ValidateUsername)
-        self._test_username_schema(schema)
+        tree = ValidationTree(ValidateUsername)
+        self._test_username_tree(tree)
 
     def test_coercing(self):
         class CoerceUsernameUppercase(DeclarativeValidationNode):
@@ -56,8 +56,8 @@ class ValidatorsTest(TestCase):
             def coerce_username_uppercase(data, **kwargs):
                 data['username'] = data['username'].upper()
 
-        schema = Schema(CoerceUsernameUppercase)
-        result = schema.validate({'username': 'foo'})
+        tree = ValidationTree(CoerceUsernameUppercase)
+        result = tree.validate({'username': 'foo'})
         self.assertTrue(result.is_valid)
         self.assertEqual(result.data, {'username': 'FOO'})
 
@@ -81,16 +81,16 @@ class ValidatorsTest(TestCase):
                         'e-mail address must be from example.com', 'email'
                     )
 
-        schema = Schema(ValidateEmailDomain)
+        tree = ValidationTree(ValidateEmailDomain)
         self.assertHasValidationError(
-            schema.validate({'email': 'qwe'}),
+            tree.validate({'email': 'qwe'}),
             'invalid e-mail address', 'email'
         )
         self.assertHasValidationError(
-            schema.validate({'email': 'qwe@example.org'}),
+            tree.validate({'email': 'qwe@example.org'}),
             'e-mail address must be from example.com', 'email'
         )
-        self.assertTrue(schema.validate({'email': 'qwe@example.com'}).is_valid)
+        self.assertTrue(tree.validate({'email': 'qwe@example.com'}).is_valid)
 
     def test_context_data(self):
         class ValidateUsername(DeclarativeValidationNode):
@@ -101,12 +101,12 @@ class ValidatorsTest(TestCase):
                 if data['username'] != user:
                     raise ValidationError('unexpected username', 'username')
 
-        schema = Schema(ValidateUsername)
+        tree = ValidationTree(ValidateUsername)
         self.assertHasValidationError(
-            schema.validate({'username': 'foo'}, user='bar'),
+            tree.validate({'username': 'foo'}, user='bar'),
             'unexpected username', 'username'
         )
-        self.assertTrue(schema.validate({'username': 'foo'}, user='foo').is_valid)
+        self.assertTrue(tree.validate({'username': 'foo'}, user='foo').is_valid)
 
     def test_revalidate(self):
         log = set()
@@ -141,26 +141,26 @@ class ValidatorsTest(TestCase):
                     raise ValidationError('e-mail must contain username', 'email')
                 log.add('user')
 
-        schema = Schema(ValidateUser)
-        result = schema.validate({'username': 'foouser', 'email': 'foo'})
+        tree = ValidationTree(ValidateUser)
+        result = tree.validate({'username': 'foouser', 'email': 'foo'})
         self.assertEqual(log, {'username', 'email fail'})
 
         log = set()
-        schema.revalidate(result, {'email': 'bar'})
+        tree.revalidate(result, {'email': 'bar'})
         self.assertEqual(log, {'email fail'})
 
         log = set()
-        schema.revalidate(result, {'username': 'baruser', 'email': 'bar'})
+        tree.revalidate(result, {'username': 'baruser', 'email': 'bar'})
         self.assertEqual(log, {'username', 'email fail'})
 
         log = set()
-        schema.revalidate(result, {'username': 'q' * 20, 'email': 'bar@qqq'})
+        tree.revalidate(result, {'username': 'q' * 20, 'email': 'bar@qqq'})
         self.assertEqual(log, {'username fail', 'email'})
 
         log = set()
-        schema.revalidate(result, {'email': 'foo@qqq'})
+        tree.revalidate(result, {'email': 'foo@qqq'})
         self.assertEqual(log, {'email', 'user fail'})
 
         log = set()
-        schema.revalidate(result, {'email': 'foouser@qqq'})
+        tree.revalidate(result, {'email': 'foouser@qqq'})
         self.assertEqual(log, {'email', 'user'})

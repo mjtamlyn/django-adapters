@@ -195,7 +195,7 @@ Update
     assert model_adapter.initial = {'name': 'hello'}
 
 With inline
-===========
+-----------
 
 .. code-block:: python
 
@@ -223,7 +223,7 @@ But if you want to define your own form for the inline, it's the same pattern:
 Same principle for JSONAdapter.
 
 With nested inline
-==================
+------------------
 
 .. code-block:: python
 
@@ -263,3 +263,103 @@ But if we want to override defaults, same as above:
     json_adapter = adapters.DjangoFormAdapter(model_adapter, dict(
         pet_set=pet_json_adapter,
     ))
+
+Schema Mutations
+================
+
+Going beyond what you've ever seen, inspired from schematics blacklist feature,
+in an extensible way like yourlabs/facond.
+
+Removing a choice based on the value of another field
+-----------------------------------------------------
+
+Consider such a Linux shop which offers support and format of computers with
+Linux, and only Format for computers with Windows, they make a beautiful Web
+2.0 form::
+
+    Platform: [ ] Linux [ ] Windows
+    Service: [ ] Support [ ] Format
+
+The form should look either like this::
+
+    Platform: [ ] Linux [X] Windows
+    Service: [ ] Format
+
+Or that::
+
+    Platform: [X] Linux [ ] Windows
+    Service: [ ] Support [ ] Format
+
+But, God forbids, a user shouldn't **ever** be able to select both "Windows"
+and "Support", we don't want this to happen **or kittens will die**::
+
+    Platform: [ ] Linux [X] Windows
+    Service: [X] Support [ ] Format
+
+We want to ensure this behaves properly during initial rendering,
+validation, rerendering, and of course live in the browser.<Paste>
+
+.. code-block:: python
+
+    from adapters import shortcuts as adaters
+
+    # for the example use the base adapter which just deals with the schema and
+    # data
+    adapter = adapters.Adapter()
+
+    adapter.add_field('plaform', adapters.Choice((
+        ('linux', 'Linux'),
+        ('windows', 'Windows'),
+    )))
+    adapter.add_field('service', adapters.Choice(
+        ('support', 'Support'),
+        ('format', 'Format'),
+    ))
+
+    adapter.add_mutation(
+        adapters.ChoiceExcludeMutation(
+            'service', ['support'],
+        ),
+        conditions=[
+            adapters.ValueEqual('platform', 'windows'),
+        ]
+    )
+
+    # Should play mutations before executing validation
+    adapter.validate({'service': 'support', 'platform': 'windows'})
+
+    assert adapter.errors == dict(
+        service=['support is not a valid choice if platform is windows'],
+        platform=['platform is not a valid choice if service is windows'],
+    )
+
+Removing a field based on the value of another field
+----------------------------------------------------
+
+Another example, to remove field "service" for platform=windows, in this case
+we have 2 possibilities::
+
+    Platform: [X] Linux [ ] Windows
+    Service: [ ] Format [ ] Support
+
+Or::
+
+    Platform: [ ] Linux [X] Windows
+
+So, we have the same as above, except we add a different mutation:
+
+.. code-block:: python
+
+    adapter.add_mutation(
+        adapters.FieldRemoveMutation('service'),
+        conditions=[
+            adapters.ValueEqual('platform', 'windows'),
+        ]
+    )
+
+    # Should play mutations before executing validation
+    adapter.validate({'service': 'support', 'platform': 'windows'})
+
+    assert adapter.errors == dict(
+        non_field=['support is not a field if platform is windows'],
+    )

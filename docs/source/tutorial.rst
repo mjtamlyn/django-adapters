@@ -5,8 +5,8 @@ Tutorial
 Adapters on their own (no chaining)
 ===================================
 
-Just JSON
----------
+Just JSON ... and Batavia
+-------------------------
 
 .. code-block:: python
 
@@ -38,7 +38,33 @@ Just JSON
     # but, you could send an email or something if you want in your subclass ;)
     adapter.process()
 
-    adapter.output()  # output in JSON
+    assert adapter.output() == {
+        'fields': [
+            {
+                'cls': 'adapter.fields.String',
+                'name': 'name',
+                'required': true,
+            },
+            {
+                'cls': 'adapter.fields.Email',
+                'name': 'name',
+                'required': false,
+            }
+        ],
+        'validators': [
+            {
+                'cls': 'adapter.validators.Batavia',
+                'bytecode': 'ZWxsbyBXb3JsZE4pAdoFcHJpbnSpAHICAAAAcgIAAAD6PC92YXIvZm9sZGVycy85cC9uenY0MGxf',
+            }
+        ],
+        'errors': {
+            'non_field': 'not as exciting as the above property',
+            'email': 'Must by a valid email',
+        },
+        'data': {},  // my received data
+        'initial': {},  // what supposed to be initial
+        'result': {},  // if we had processed anything, more on that further on
+    }
 
 Declarative ? easy:
 

@@ -40,6 +40,18 @@ Just JSON
 
     adapter.output()  # output in JSON
 
+Declarative ? easy:
+
+.. code-block:: python
+
+    class YourJsonAdapter(adapters.json.Adapter):
+        name = adapters.fields.String()
+        email = adapters.fields.Email()
+
+        name_email = adapters.Validator(
+            lambda data: data['name'] in data['email'],
+            'Your name must be in your email', # example is silly, but short !
+        )
 
 Just a form
 -----------
@@ -457,3 +469,52 @@ With autocompletion please dear:
     form_adapter.field_add(
         adapters.fields.django.ModelMultipleAutocomplete('hobbies', Hobby.objects.all())
     )
+
+Level 3 Hacking API Daydream
+============================
+
+Your app provides a widget with splidid.js, in splindid/apps.py you add:
+
+.. code-block:: python
+
+    from adapters.signals import field_initialize
+
+    def splindid_field_initialize(sender, field, **kwargs):
+        autocomplete_url = splindid.find_url_for_model(model)
+
+        if autocomplete_url:
+            # decorate field with SplendidField
+            return SplindidField(field, autocomplete_url)
+
+    # already a little exciting
+    field_initialize.connect(splindid_field_initialize,
+        sender=adapters.django.ModelChoiceField)
+
+.. code-block:: python
+
+    class YourFormAdapter(adapters.django.adapters.Model):
+        class Meta:
+            model = Order
+
+        def field_initialize(self, field):
+            """This is called by Adapter every time a field is added.
+
+            And a field can be added with field_add(), but also in __init__ by
+            passing a parent adapter.
+            """
+            super().field_initialize(field)
+
+        name = adapters.fields.String(help_text='Your real name')
+
+        name_email = adapters.Validator(
+            lambda data: data['name'] in data['email'],
+            'Your name must be in your email', # example is silly, but short !
+        )
+
+        # Comply with
+        #
+        #    Order.limit_choices_to =
+        #       lambda self: Service.objects.filter(platform=self.platform)
+        #
+        # oh god i'm excited
+        service_filter = adapters.mutations.ModelChoiceFilter('platform', 'service')

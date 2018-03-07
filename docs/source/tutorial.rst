@@ -154,7 +154,7 @@ Create
     assert json_adapter.fields == model_adapter.fields
 
     # another option, would be:
-    # json_adapter = adapters.JSONAdapter(forms_adapter)
+    # json_adapter = adapters.json.Adapter(forms_adapter)
     # in this example it would result in the same
 
     if request.method == 'POST':
@@ -221,8 +221,6 @@ But if you want to define your own form for the inline, it's the same pattern:
         pet_set=pet_form_adapter,
     ))
 
-Same principle for JSONAdapter.
-
 With nested inline
 ------------------
 
@@ -253,7 +251,7 @@ But if we want to override defaults, same as above:
     pet_json_adapter = adapters.json.Adapter(pet_model_adapter, dict(
         toy_set=adapters.List(toy_json_adapter),
     ))
-    json_adapter = adapters.JSONAdapter(model_adapter, dict(
+    json_adapter = adapters.json.Adapter(model_adapter, dict(
         pet_set=adapters.List(pet_json_adapter),
     ))
 

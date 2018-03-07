@@ -34,6 +34,14 @@ Create
             result = adapter.process(adapter.processed_data)
             assert result.pk # you have created a model
 
+
+    if request.is_ajax():
+        # return HTML form string with your layout
+        return forms_adapter.output(layout)
+    else:
+        # return JSON interface, errors and all
+        return json_adapter.output()
+
 Update
 ------
 

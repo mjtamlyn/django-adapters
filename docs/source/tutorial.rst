@@ -2,8 +2,138 @@
 Tutornial
 =========
 
-Single model
-============
+Adapters on their own (no chaining)
+===================================
+
+Just JSON
+---------
+
+.. code-block:: python
+
+
+    from adapters import shortcuts as adaters
+
+    adapter = adapters.JSONAdapter()
+
+    adapter.add_field('name', adapters.String())
+    adapter.add_field('email', adapters.Email(required=False))
+
+    adapter.add_validation(
+        lambda data: data['name'] in data['email'],
+        'Your name must be in your email', # example is silly, but short !
+    )
+
+    adapter.validate({'name': 'foo', 'email': 'bar@'})
+
+    assert adapter.errors == dict(
+        non_field=['Your name must be in your email']
+        email=['Must be a valid email'],
+    )
+
+    adapter.validate({'name': 'foo', 'email': 'foo@example.com'})
+
+    assert not adapter.errors
+
+    # doesn't do anything, we don't have any persistence adapter in this example !
+    # but, you could send an email or something if you want in your subclass ;)
+    adapter.process()
+
+    adapter.output()  # output in JSON
+
+
+Just a form
+-----------
+
+.. code-block:: python
+
+    from adapters import shortcuts as adaters
+
+    adapter = adapters.DjangoFormsAdapter()
+
+    adapter.add_field('name', adapters.String())
+    adapter.add_field('email', adapters.Email(required=False))
+    adapter.add_field('hobbies', adapters.MultipleChoice(
+        ('python', 'Python'),
+        ('django', 'Django'),
+        ('archery', 'Archery'),
+    ))
+    adapter.add_field('password', adapters.Password())
+    adapter.add_field('password_confirm', adapters.Password())
+
+    adapter.add_validation(
+        lambda data: data['password'] == data['password_confirm'],
+        'Passwords should be the same'
+    )
+
+    adapter.validate({
+        'name': 'hello',
+        'email': 'foo',
+        'hobbies': ['archery', 'music'],
+        'password': 'foo',
+        'password_confirm': 'bar'
+    })
+
+    assert adapter.errors == dict(
+        non_field=['Passwords should be the same'],
+        hobbies=['music is not a valid choice'],
+        email=['Must be a valid email'],
+    )
+
+    adapter.validate({
+        'name': 'hello',
+        'hobbies': ['archery', 'django'],
+        'password': 'foo',
+        'password_confirm': 'foo'
+    })
+
+    assert not adapter.errors
+
+    # doesn't do anything, we don't have any persistence adapter in this example !
+    # but, you could send an email or something if you want in your subclass ;)
+    adapter.process()
+
+    adapter.layout = (
+        ('name', 'email'),
+        'password',
+        'password_confirm',
+    )
+    form.output() # HTML form !
+
+Just model
+----------
+
+.. code-block:: python
+
+    from adapters import shortcuts as adaters
+
+    class Person(models.Model):
+        name = models.CharField(blank=False)
+
+    adapter = adapters.DjangoModelAdapter(Person)
+    adapter.adapt(Person())
+
+    adapter.validate({
+        'name': '',
+    })
+
+    assert adapter.errors == dict(
+        name=['Must not be blank'],
+    )
+
+    adapter.validate({
+        'name': 'hello',
+    })
+
+    assert not adapter.errors
+
+    result = adapter.process()
+    assert result.pk
+    assert respolt.name == 'hello'
+
+Chaining adapters
+=================
+
+All the fun happens when composing adapters with each other and build a tree.
 
 Create
 ------
@@ -17,9 +147,18 @@ Create
     model_adapter.adapt(Person())
 
     forms_adapter = adapters.DjangoFormsAdapter(model_adapter)
+    assert form_adapter.fields == model_adapter.fields
+
     json_adapter = adapters.JSONAdapter(model_adapter)
+    assert json_adapter.fields == model_adapter.fields
+
+    # another option, would be:
+    # json_adapter = adapters.JSONAdapter(forms_adapter)
+    # in this example it would result in the same
 
     if request.method == 'POST':
+        # We'll switch presentational adapter here, cause they both have the
+        # same persistence adapter so for db business logic we'll have the same
         if request.is_ajax():
             adapter = json_adapter
             data = request.json()
@@ -52,6 +191,8 @@ Update
 
     model_adapter = adapters.DjangoModelAdapter(Person)
     model_adapter.adapt(Person.objects.get(pk=1))
+
+    assert model_adapter.initial = {'name': 'hello'}
 
 With inline
 ===========

@@ -59,6 +59,7 @@ Just a form
     ))
     adapter.field_add(adapters.fields.Password('password'))
     adapter.field_add(adapters.fields.Password('password_confirm'))
+    # alternative to adding fields would be: adapter.adapt(YourExistingForm)
 
     adapter.validation_add(
         lambda data: data['password'] == data['password_confirm'],

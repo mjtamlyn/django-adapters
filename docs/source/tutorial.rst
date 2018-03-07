@@ -473,6 +473,9 @@ With autocompletion please dear:
 Level 3 Hacking API Daydream
 ============================
 
+Hooooking schema declaration !
+------------------------------
+
 Your app provides a widget with splidid.js, in splindid/apps.py you add:
 
 .. code-block:: python
@@ -490,6 +493,9 @@ Your app provides a widget with splidid.js, in splindid/apps.py you add:
     field_initialize.connect(splindid_field_initialize,
         sender=adapters.django.ModelChoiceField)
 
+Mind blowing declarative API !
+------------------------------
+
 .. code-block:: python
 
     class YourFormAdapter(adapters.django.adapters.Model):
@@ -499,8 +505,8 @@ Your app provides a widget with splidid.js, in splindid/apps.py you add:
         def field_initialize(self, field):
             """This is called by Adapter every time a field is added.
 
-            And a field can be added with field_add(), but also in __init__ by
-            passing a parent adapter.
+            And a field can be added with field_add(), but also if a parent
+            adapter is passed to __init__() !
             """
             super().field_initialize(field)
 
@@ -516,5 +522,6 @@ Your app provides a widget with splidid.js, in splindid/apps.py you add:
         #    Order.limit_choices_to =
         #       lambda self: Service.objects.filter(platform=self.platform)
         #
-        # oh god i'm excited
+        # oh god i'm excited to hack client side for this **once** **and**
+        # **for** **all**
         service_filter = adapters.mutations.ModelChoiceFilter('platform', 'service')

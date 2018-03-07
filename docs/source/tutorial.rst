@@ -11,12 +11,12 @@ Just JSON
 .. code-block:: python
 
 
-    from adapters import shortcuts as adaters
+    from adapters import shortcuts as adapters
 
-    adapter = adapters.JSONAdapter()
+    adapter = adapters.json.Adapter()
 
-    adapter.add_field(adapters.String('name'))
-    adapter.add_field(adapters.Email('email', required=False))
+    adapter.add_field(adapters.fields.String('name'))
+    adapter.add_field(adapters.fields.Email('email', required=False))
 
     adapter.add_validation(
         lambda data: data['name'] in data['email'],
@@ -46,19 +46,19 @@ Just a form
 
 .. code-block:: python
 
-    from adapters import shortcuts as adaters
+    from adapters import shortcuts as adapters
 
-    adapter = adapters.DjangoFormsAdapter()
+    adapter = adapters.django.Form()
 
-    adapter.add_field(adapters.String('name'))
-    adapter.add_field(adapters.Email('email', required=False))
-    adapter.add_field(adapters.MultipleChoice('hobbies',
+    adapter.add_field(adapters.fields.String('name'))
+    adapter.add_field(adapters.fields.Email('email', required=False))
+    adapter.add_field(adapters.fields.MultipleChoice('hobbies',
         ('python', 'Python'),
         ('django', 'Django'),
         ('archery', 'Archery'),
     ))
-    adapter.add_field(adapters.Password('password'))
-    adapter.add_field(adapters.Password('password_confirm'))
+    adapter.add_field(adapters.fields.Password('password'))
+    adapter.add_field(adapters.fields.Password('password_confirm'))
 
     adapter.add_validation(
         lambda data: data['password'] == data['password_confirm'],
@@ -104,12 +104,12 @@ Just model
 
 .. code-block:: python
 
-    from adapters import shortcuts as adaters
+    from adapters import shortcuts as adapters
 
     class Person(models.Model):
         name = models.CharField(blank=False)
 
-    adapter = adapters.DjangoModelAdapter(Person)
+    adapter = adapters.django.Model(Person)
     adapter.adapt(Person())
 
     adapter.validate({
@@ -140,16 +140,16 @@ Create
 
 .. code-block:: python
 
-    from adapters import shortcuts as adaters
+    from adapters import shortcuts as adapters
     from .models import Person
 
-    model_adapter = adapters.DjangoModelAdapter(Person)
+    model_adapter = adapters.django.Model(Person)
     model_adapter.adapt(Person())
 
-    forms_adapter = adapters.DjangoFormsAdapter(model_adapter)
+    forms_adapter = adapters.django.Forms(model_adapter)
     assert form_adapter.fields == model_adapter.fields
 
-    json_adapter = adapters.JSONAdapter(model_adapter)
+    json_adapter = adapters.json.Adapter(model_adapter)
     assert json_adapter.fields == model_adapter.fields
 
     # another option, would be:
@@ -186,10 +186,10 @@ Update
 
 .. code-block:: python
 
-    from adapters import shortcuts as adaters
+    from adapters import shortcuts as adapters
     from .models import Person
 
-    model_adapter = adapters.DjangoModelAdapter(Person)
+    model_adapter = adapters.django.Model(Person)
     model_adapter.adapt(Person.objects.get(pk=1))
 
     assert model_adapter.initial = {'name': 'hello'}
@@ -199,25 +199,25 @@ With inline
 
 .. code-block:: python
 
-    from adapters import shortcuts as adaters
+    from adapters import shortcuts as adapters
     from .models import Person, Pet
 
-    pet_model_adapter = adapters.DjangoModelListAdapter(Person.pet_set)
-    model_adapter = adapters.DjangoModelAdapter(Person, dict(
+    pet_model_adapter = adapters.django.Relation(Person.pet_set)
+    model_adapter = adapters.django.Model(Person, dict(
         pet_set=pet_model_adapter
     ))
     model_adapter.adapt(Person())
 
-    form_adapter = adapters.DjangoFormsAdapter(model_adapter)
+    form_adapter = adapters.django.Form(model_adapter)
     # rest is the same
 
 But if you want to define your own form for the inline, it's the same pattern:
 
 .. code-block:: python
 
-    pet_form_adapter = adapters.DjangoFormListAdapter(pet_model_adapter)
-    form_adapter = adapters.DjangoFormsAdapter(model_adapter, dict(
-        pet_set=pet_form_adapter
+    pet_form_adapter = adapters.List(adapters.django.Form(pet_model_adapter))
+    form_adapter = adapters.django.FormsAdapter(model_adapter, dict(
+        pet_set=pet_form_adapter,
     ))
 
 Same principle for JSONAdapter.
@@ -227,41 +227,42 @@ With nested inline
 
 .. code-block:: python
 
-    from adapters import shortcuts as adaters
+    from adapters import shortcuts as adapters
     from .models import Person, Pet, Toy
 
-    toy_model_adapter = adapters.DjangoModelListAdapter(Pet.toy_set)
-    pet_model_adapter = adapters.DjangoModelListAdapter(Person.pet_set, dict(
-        toy_set=toy_model_adapter,
+    toy_model_adapter = adapters.django.Model(Pet.toy_set)
+    pet_model_adapter = adapters.django.ModelListAdapter(Person.pet_set, dict(
+        toy_set=adapter.List(toy_model_adapter),
     ))
-    model_adapter = adapters.DjangoModelAdapter(Person, dict(
-        pet_set=pet_model_adapter
+    model_adapter = adapters.django.Model(Person, dict(
+        pet_set=adapters.List(pet_model_adapter)
     ))
     # should work both in create and update mode
     model_adapter.adapt(Person.objects.filter(pk=1) or Person())
 
-    form_adapter = adapters.DjangoFormsAdapter(model_adapter)
-    json_adapter = adapters.JSONAdapter(model_adapter)
+    form_adapter = adapters.django.Form(model_adapter)
+    json_adapter = adapters.json.Adapter(model_adapter)
     # rest is the same
 
 But if we want to override defaults, same as above:
 
 .. code-block:: python
 
-    toy_json_adapter = adapters.JSONListAdapter(toy_model_adapter)
-    pet_json_adapter = adapters.JSONListAdapter(pet_model_adapter, dict(
-        toy_set=toy_json_adapter,
+    toy_json_adapter = adapters.json.Adapter(toy_model_adapter)
+    pet_json_adapter = adapters.json.Adapter(pet_model_adapter, dict(
+        toy_set=adapters.List(toy_json_adapter),
     ))
     json_adapter = adapters.JSONAdapter(model_adapter, dict(
-        pet_set=pet_json_adapter,
+        pet_set=adapters.List(pet_json_adapter),
     ))
 
-    toy_json_adapter = adapters.DjangoFormListAdapter(toy_model_adapter)
-    pet_json_adapter = adapters.DjangoFormListAdapter(pet_model_adapter, dict(
-        toy_set=toy_json_adapter,
+
+    toy_form_adapter = adapters.django.Form(toy_model_adapter)
+    pet_form_adapter = adapters.django.Form(pet_model_adapter, dict(
+        toy_set=adapters.List(toy_form_adapter),
     ))
-    json_adapter = adapters.DjangoFormAdapter(model_adapter, dict(
-        pet_set=pet_json_adapter,
+    form_adapter = adapters.django.Form(model_adapter, dict(
+        pet_set=adapters.List(pet_form_adapter),
     ))
 
 Schema Mutations
@@ -301,27 +302,27 @@ validation, rerendering, and of course live in the browser.<Paste>
 
 .. code-block:: python
 
-    from adapters import shortcuts as adaters
+    from adapters import shortcuts as adapters
 
     # for the example use the base adapter which just deals with the schema and
     # data
     adapter = adapters.Adapter()
 
-    adapter.add_field(adapters.Choice('platform', (
+    adapter.add_field(adapters.fields.Choice('platform', (
         ('linux', 'Linux'),
         ('windows', 'Windows'),
     )))
-    adapter.add_field(adapters.Choice('service', (
+    adapter.add_field(adapters.fields.Choice('service', (
         ('support', 'Support'),
         ('format', 'Format'),
     ))
 
     adapter.add_mutation(
-        adapters.ChoiceExcludeMutation(
+        adapters.mutations.ChoiceRemove(
             'service', ['support'],
         ),
         conditions=[
-            adapters.ValueEqual('platform', 'windows'),
+            adapters.conditions.ValueEqual('platform', 'windows'),
         ]
     )
 
@@ -351,9 +352,9 @@ So, we have the same as above, except we add a different mutation:
 .. code-block:: python
 
     adapter.add_mutation(
-        adapters.FieldRemoveMutation('service'),
+        adapters.mutations.FieldRemove('service'),
         conditions=[
-            adapters.ValueEqual('platform', 'windows'),
+            adapters.conditions.ValueEqual('platform', 'windows'),
         ]
     )
 
@@ -369,19 +370,19 @@ Dynamic fields
 
 .. code-block:: python
 
-    from adapters import shortcuts as adaters
+    from adapters import shortcuts as adapters
 
-    adapter = adapters.DjangoFormsAdapter()
+    adapter = adapters.django.FormsAdapter()
 
-    adapter.add_field(adapters.Choice('role', (
+    adapter.add_field(adapters.fields.Choice('role', (
         ('archer', 'Archer'),
         ('musician', 'Musician'),
     ))
     adapter.add_field(
-        adapters.ModelMultipleChoice('hobbies', Hobby.objects.all())
+        adapters.fields.django.ModelMultipleChoice('hobbies', Hobby.objects.all())
     )
     adapter.add_mutation(
-        adapter.ModelChoiceMutation(
+        adapters.mutations.ModelChoice(
             'hobbies',
             lambda a: Hobby.objects.filter(
                 role=a.processed_data['role']
@@ -398,12 +399,12 @@ list only when that field changes:
 .. code-block:: python
 
     adapter.add_mutation(
-        adapter.ModelChoiceMutation(
+        adapters.mutations.ModelChoice(
             'hobbies',
             lambda a: Hobby.objects.filter(
                 role=a.processed_data['role']
             ),
-            triggers=adapters.Event('input', 'role'),
+            triggers=adapters.events.Input('role'),
         )
     )
 
@@ -413,7 +414,7 @@ code:
 .. code-block:: python
 
     adapter.add_mutation(
-        adapter.ModelChoiceFilterMutation(
+        adapters.mutations.ModelChoiceFilter(
             'hobbies', # field to mutate
             'role', # filter argument name
             'role', # field name for filter argument value
@@ -425,7 +426,7 @@ Or even, DRYer:
 .. code-block:: python
 
     adapter.add_mutation(
-        adapter.ModelChoiceFilterMutation(
+        adapters.mutations.ModelChoiceFilter(
             'hobbies', # field to mutate
             'role', # one arg only ? will do role=data['role'] !
         )

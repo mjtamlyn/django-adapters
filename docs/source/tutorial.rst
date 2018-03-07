@@ -15,8 +15,8 @@ Just JSON
 
     adapter = adapters.json.Adapter()
 
-    adapter.add_field(adapters.fields.String('name'))
-    adapter.add_field(adapters.fields.Email('email', required=False))
+    adapter.field_add(adapters.fields.String('name'))
+    adapter.field_add(adapters.fields.Email('email', required=False))
 
     adapter.add_validation(
         lambda data: data['name'] in data['email'],
@@ -50,15 +50,15 @@ Just a form
 
     adapter = adapters.django.Form()
 
-    adapter.add_field(adapters.fields.String('name'))
-    adapter.add_field(adapters.fields.Email('email', required=False))
-    adapter.add_field(adapters.fields.MultipleChoice('hobbies',
+    adapter.field_add(adapters.fields.String('name'))
+    adapter.field_add(adapters.fields.Email('email', required=False))
+    adapter.field_add(adapters.fields.MultipleChoice('hobbies',
         ('python', 'Python'),
         ('django', 'Django'),
         ('archery', 'Archery'),
     ))
-    adapter.add_field(adapters.fields.Password('password'))
-    adapter.add_field(adapters.fields.Password('password_confirm'))
+    adapter.field_add(adapters.fields.Password('password'))
+    adapter.field_add(adapters.fields.Password('password_confirm'))
 
     adapter.add_validation(
         lambda data: data['password'] == data['password_confirm'],
@@ -308,11 +308,11 @@ validation, rerendering, and of course live in the browser.<Paste>
     # data
     adapter = adapters.Adapter()
 
-    adapter.add_field(adapters.fields.Choice('platform', (
+    adapter.field_add(adapters.fields.Choice('platform', (
         ('linux', 'Linux'),
         ('windows', 'Windows'),
     )))
-    adapter.add_field(adapters.fields.Choice('service', (
+    adapter.field_add(adapters.fields.Choice('service', (
         ('support', 'Support'),
         ('format', 'Format'),
     ))
@@ -374,11 +374,11 @@ Dynamic fields
 
     adapter = adapters.django.FormsAdapter()
 
-    adapter.add_field(adapters.fields.Choice('role', (
+    adapter.field_add(adapters.fields.Choice('role', (
         ('archer', 'Archer'),
         ('musician', 'Musician'),
     ))
-    adapter.add_field(
+    adapter.field_add(
         adapters.fields.django.ModelMultipleChoice('hobbies', Hobby.objects.all())
     )
     adapter.add_mutation(
@@ -430,4 +430,29 @@ Or even, DRYer:
             'hobbies', # field to mutate
             'role', # one arg only ? will do role=data['role'] !
         )
+    )
+
+With autocompletion please dear:
+
+.. code-block:: python
+
+    from adapters import shortcuts as adapters
+    from .models import Person
+
+    model_adapter = adapters.django.ModelAdapter(Person)
+    form_adapter = adapters.django.FormsAdapter(model_adapter)
+
+    adapter.add_mutation(
+        adapters.mutations.ModelChoice(
+            'hobbies',
+            lambda a: Hobby.objects.filter(
+                role=a.processed_data['role']
+            )
+        )
+    )
+
+    # this will add field on form_adapter, but leave model_adapter's generated
+    # field:
+    form_adapter.field_add(
+        adapters.fields.django.ModelMultipleAutocomplete('hobbies', Hobby.objects.all())
     )

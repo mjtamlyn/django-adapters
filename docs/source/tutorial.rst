@@ -18,7 +18,7 @@ Just JSON
     adapter.field_add(adapters.fields.String('name'))
     adapter.field_add(adapters.fields.Email('email', required=False))
 
-    adapter.add_validation(
+    adapter.validation_add(
         lambda data: data['name'] in data['email'],
         'Your name must be in your email', # example is silly, but short !
     )
@@ -60,7 +60,7 @@ Just a form
     adapter.field_add(adapters.fields.Password('password'))
     adapter.field_add(adapters.fields.Password('password_confirm'))
 
-    adapter.add_validation(
+    adapter.validation_add(
         lambda data: data['password'] == data['password_confirm'],
         'Passwords should be the same'
     )
@@ -317,7 +317,7 @@ validation, rerendering, and of course live in the browser.<Paste>
         ('format', 'Format'),
     ))
 
-    adapter.add_mutation(
+    adapter.mutation_add(
         adapters.mutations.ChoiceRemove(
             'service', ['support'],
         ),
@@ -351,7 +351,7 @@ So, we have the same as above, except we add a different mutation:
 
 .. code-block:: python
 
-    adapter.add_mutation(
+    adapter.mutation_add(
         adapters.mutations.FieldRemove('service'),
         conditions=[
             adapters.conditions.ValueEqual('platform', 'windows'),
@@ -381,7 +381,7 @@ Dynamic fields
     adapter.field_add(
         adapters.fields.django.ModelMultipleChoice('hobbies', Hobby.objects.all())
     )
-    adapter.add_mutation(
+    adapter.mutation_add(
         adapters.mutations.ModelChoice(
             'hobbies',
             lambda a: Hobby.objects.filter(
@@ -398,7 +398,7 @@ list only when that field changes:
 
 .. code-block:: python
 
-    adapter.add_mutation(
+    adapter.mutation_add(
         adapters.mutations.ModelChoice(
             'hobbies',
             lambda a: Hobby.objects.filter(
@@ -413,7 +413,7 @@ code:
 
 .. code-block:: python
 
-    adapter.add_mutation(
+    adapter.mutation_add(
         adapters.mutations.ModelChoiceFilter(
             'hobbies', # field to mutate
             'role', # filter argument name
@@ -425,7 +425,7 @@ Or even, DRYer:
 
 .. code-block:: python
 
-    adapter.add_mutation(
+    adapter.mutation_add(
         adapters.mutations.ModelChoiceFilter(
             'hobbies', # field to mutate
             'role', # one arg only ? will do role=data['role'] !
@@ -442,7 +442,7 @@ With autocompletion please dear:
     model_adapter = adapters.django.ModelAdapter(Person)
     form_adapter = adapters.django.FormsAdapter(model_adapter)
 
-    adapter.add_mutation(
+    adapter.mutation_add(
         adapters.mutations.ModelChoice(
             'hobbies',
             lambda a: Hobby.objects.filter(

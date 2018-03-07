@@ -363,3 +363,70 @@ So, we have the same as above, except we add a different mutation:
     assert adapter.errors == dict(
         non_field=['support is not a field if platform is windows'],
     )
+
+Dynamic fields
+--------------
+
+.. code-block:: python
+
+    from adapters import shortcuts as adaters
+
+    adapter = adapters.DjangoFormsAdapter()
+
+    adapter.add_field(adapters.Choice('role', (
+        ('archer', 'Archer'),
+        ('musician', 'Musician'),
+    ))
+    adapter.add_field(
+        adapters.ModelMultipleChoice('hobbies', Hobby.objects.all())
+    )
+    adapter.add_mutation(
+        adapter.ModelChoiceMutation(
+            'hobbies',
+            lambda a: Hobby.objects.filter(
+                role=a.processed_data['role']
+            )
+        )
+    )
+
+This means that if there is any frontend, it should refresh "hobbies" list
+every time a value changes, and clear the field value if set and incompatible.
+
+If we want to declare which field has that side effect and update the hobbies
+list only when that field changes:
+
+.. code-block:: python
+
+    adapter.add_mutation(
+        adapter.ModelChoiceMutation(
+            'hobbies',
+            lambda a: Hobby.objects.filter(
+                role=a.processed_data['role']
+            ),
+            triggers=adapters.Event('input', 'role'),
+        )
+    )
+
+Or, we could also have a higher level mutation which can do this with less
+code:
+
+.. code-block:: python
+
+    adapter.add_mutation(
+        adapter.ModelChoiceFilterMutation(
+            'hobbies', # field to mutate
+            'role', # filter argument name
+            'role', # field name for filter argument value
+        )
+    )
+
+Or even, DRYer:
+
+.. code-block:: python
+
+    adapter.add_mutation(
+        adapter.ModelChoiceFilterMutation(
+            'hobbies', # field to mutate
+            'role', # one arg only ? will do role=data['role'] !
+        )
+    )

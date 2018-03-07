@@ -1,6 +1,6 @@
-=========
-Tutornial
-=========
+========
+Tutorial
+========
 
 Adapters on their own (no chaining)
 ===================================
@@ -15,8 +15,8 @@ Just JSON
 
     adapter = adapters.JSONAdapter()
 
-    adapter.add_field('name', adapters.String())
-    adapter.add_field('email', adapters.Email(required=False))
+    adapter.add_field(adapters.String('name'))
+    adapter.add_field(adapters.Email('email', required=False))
 
     adapter.add_validation(
         lambda data: data['name'] in data['email'],
@@ -50,15 +50,15 @@ Just a form
 
     adapter = adapters.DjangoFormsAdapter()
 
-    adapter.add_field('name', adapters.String())
-    adapter.add_field('email', adapters.Email(required=False))
-    adapter.add_field('hobbies', adapters.MultipleChoice(
+    adapter.add_field(adapters.String('name'))
+    adapter.add_field(adapters.Email('email', required=False))
+    adapter.add_field(adapters.MultipleChoice('hobbies',
         ('python', 'Python'),
         ('django', 'Django'),
         ('archery', 'Archery'),
     ))
-    adapter.add_field('password', adapters.Password())
-    adapter.add_field('password_confirm', adapters.Password())
+    adapter.add_field(adapters.Password('password'))
+    adapter.add_field(adapters.Password('password_confirm'))
 
     adapter.add_validation(
         lambda data: data['password'] == data['password_confirm'],
@@ -307,11 +307,11 @@ validation, rerendering, and of course live in the browser.<Paste>
     # data
     adapter = adapters.Adapter()
 
-    adapter.add_field('plaform', adapters.Choice((
+    adapter.add_field(adapters.Choice('platform', (
         ('linux', 'Linux'),
         ('windows', 'Windows'),
     )))
-    adapter.add_field('service', adapters.Choice(
+    adapter.add_field(adapters.Choice('service', (
         ('support', 'Support'),
         ('format', 'Format'),
     ))

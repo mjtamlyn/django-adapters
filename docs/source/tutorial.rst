@@ -18,7 +18,7 @@ Just JSON
     adapter.field_add(adapters.fields.String('name'))
     adapter.field_add(adapters.fields.Email('email', required=False))
 
-    adapter.validation_add(
+    adapter.validators_add(
         lambda data: data['name'] in data['email'],
         'Your name must be in your email', # example is silly, but short !
     )
@@ -61,10 +61,12 @@ Just a form
     adapter.field_add(adapters.fields.Password('password_confirm'))
     # alternative to adding fields would be: adapter.adapt(YourExistingForm)
 
-    adapter.validation_add(
+    adapter.validators_add(
         lambda data: data['password'] == data['password_confirm'],
         'Passwords should be the same'
     )
+    # alternative: validators_add(
+    #     adapters.validators.ValueEqual('password_confirm', adapters.fields.Field('password')))
 
     adapter.validate({
         'name': 'hello',
@@ -321,7 +323,7 @@ validation, rerendering, and of course live in the browser.<Paste>
             'service', ['support'],
         ),
         conditions=[
-            adapters.conditions.ValueEqual('platform', 'windows'),
+            adapters.validators.ValueEqual('platform', 'windows'),
         ]
     )
 
@@ -353,7 +355,7 @@ So, we have the same as above, except we add a different mutation:
     adapter.mutation_add(
         adapters.mutations.FieldRemove('service'),
         conditions=[
-            adapters.conditions.ValueEqual('platform', 'windows'),
+            adapters.validators.ValueEqual('platform', 'windows'),
         ]
     )
 

@@ -53,7 +53,9 @@ Just JSON ... and Batavia
         ],
         'validators': [
             {
-                'cls': 'adapter.validators.Batavia',
+                // import './batavia-adapters' from npm or
+                // add adapters.batavia to INSTALLED_AAPS
+                'cls': 'adapter.validators.Python',
                 'bytecode': 'ZWxsbyBXb3JsZE4pAdoFcHJpbnSpAHICAAAAcgIAAAD6PC92YXIvZm9sZGVycy85cC9uenY0MGxf',
             }
         ],

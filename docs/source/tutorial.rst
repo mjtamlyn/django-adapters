@@ -2,554 +2,219 @@
 Tutorial
 ========
 
-Adapters on their own (no chaining)
-===================================
+adapter = Adapter()
+===================
 
-Just JSON ... and Batavia
--------------------------
+An adapter has adapters, because everything is an adapter::
 
-.. code-block:: python
+    a.adapters = [DjangoModelAdapter(Person.objects.get(pk=1)]
 
+An adapter can have a data map like a dict, mapping keys to .. adapters::
 
-    from adapters import shortcuts as adapters
+    adapter.map.name.adapters.add('adapters.string.String')
 
-    adapter = adapters.json.Adapter()
+An adapter has steps, executing methods on its own clone, and adapters::
 
-    adapter.field_add(adapters.fields.String('name'))
-    adapter.field_add(adapters.fields.Email('email', required=False))
+    # adapter.steps.{initiate,validate,clean,process,render}
+    adapter = adapter.steps.validate({})
 
-    adapter.validators_add(
-        lambda data: data['name'] in data['email'],
-        'Your name must be in your email', # example is silly, but short !
-    )
+An adapter is also the payload of their little story, with properties::
 
-    adapter.validate({'name': 'foo', 'email': 'bar@'})
-
-    assert adapter.errors == dict(
-        non_field=['Your name must be in your email']
-        email=['Must be a valid email'],
-    )
-
-    adapter.validate({'name': 'foo', 'email': 'foo@example.com'})
-
-    assert not adapter.errors
-
-    # doesn't do anything, we don't have any persistence adapter in this example !
-    # but, you could send an email or something if you want in your subclass ;)
-    adapter.process()
-
-    assert adapter.output() == {
-        'fields': [
-            {
-                'cls': 'adapter.fields.String',
-                'name': 'name',
-                'required': true,
-            },
-            {
-                'cls': 'adapter.fields.Email',
-                'name': 'name',
-                'required': false,
-            }
-        ],
-        'validators': [
-            {
-                // import './batavia-adapters' from npm or
-                // add adapters.batavia to INSTALLED_AAPS
-                'cls': 'adapter.validators.Python',
-                'bytecode': 'ZWxsbyBXb3JsZE4pAdoFcHJpbnSpAHICAAAAcgIAAAD6PC92YXIvZm9sZGVycy85cC9uenY0MGxf',
-            }
-        ],
-        'errors': {
-            'non_field': 'not as exciting as the above property',
-            'email': 'Must by a valid email',
-        },
-        'data': {},  // my received data
-        'initial': {},  // what supposed to be initial
-        'result': {},  // if we had processed anything, more on that further on
+    # adapter.{instance,initial,data,errors,output}
+    assert adapter.errors = {
+        'map': {
+            'name': ['Required !'],
+        }
     }
 
-Declarative ? easy:
+An adapter can be replaced with poney magic::
+
+    adapter.map.name.adapters.String.required = False
+
+An adapter can proudly represent their family::
+
+    adapters.register(DjangoModelAdapter)
+
+Then serve their dear users::
+
+    adapter = adapters.factory(Person.objects.get(pk=1))
+    assert adapter.instance.pk == 1
+    assert adapter.initial == {'name': 'sly'}
+
+And be lists too::
+
+    adapter = adapters.factory(person.pet_set)
+    assert QuerySetAdapter in adapter.adapters  # for data
+    assert ModelAdapter in adapters.map.adapters  # for data items
+
+Story of a Pythonesque IOC bootstrapping for avid users
+=======================================================
+
+IN this story a Django user seems to have an adventure with an IOC pattern
+which takes no pride in generating adapter types on the fly to build a multi
+step IOC tree that should be able to translate between languages, like
+javascript.
+
+.. warning:: It's design to not get in your way, not to prevent your rm -rf /
 
 .. code-block:: python
 
-    class YourJsonAdapter(adapters.json.Adapter):
-        name = adapters.fields.String()
-        email = adapters.fields.Email()
+    from adapters import Adapter
+    from adapters.strings import String, Email
+    from adapters.exceptions import Error
 
-        name_email = adapters.Validator(
-            lambda data: data['name'] in data['email'],
-            'Your name must be in your email', # example is silly, but short !
+    # Let's bootstrap from scratch
+    a = adapters.Adapter()
+
+    a = a.add(  # this creates and instanciates an Adapter !
+        'PersonModel',
+        instance=lambda self: (
+            # warning ! self.initial maps to adapter.initial because this is an
+            # adapter adapter not a map adapter !
+            self.instance = self.instance or Person.objects.filter(
+                pk=self.data['pk']).first()
         )
-
-Just a form
------------
-
-.. code-block:: python
-
-    from adapters import shortcuts as adapters
-
-    adapter = adapters.django.Form()
-
-    adapter.field_add(adapters.fields.String('name'))
-    adapter.field_add(adapters.fields.Email('email', required=False))
-    adapter.field_add(adapters.fields.MultipleChoice('hobbies',
-        ('python', 'Python'),
-        ('django', 'Django'),
-        ('archery', 'Archery'),
-    ))
-    adapter.field_add(adapters.fields.Password('password'))
-    adapter.field_add(adapters.fields.Password('password_confirm'))
-    # alternative to adding fields would be: adapter.adapt(YourExistingForm)
-
-    adapter.validators_add(
-        lambda data: data['password'] == data['password_confirm'],
-        'Passwords should be the same'
-    )
-    # alternative: validators_add(
-    #     adapters.validators.ValueEqual('password_confirm', adapters.fields.Field('password')))
-
-    adapter.validate({
-        'name': 'hello',
-        'email': 'foo',
-        'hobbies': ['archery', 'music'],
-        'password': 'foo',
-        'password_confirm': 'bar'
-    })
-
-    assert adapter.errors == dict(
-        non_field=['Passwords should be the same'],
-        hobbies=['music is not a valid choice'],
-        email=['Must be a valid email'],
-    )
-
-    adapter.validate({
-        'name': 'hello',
-        'hobbies': ['archery', 'django'],
-        'password': 'foo',
-        'password_confirm': 'foo'
-    })
-
-    assert not adapter.errors
-
-    # doesn't do anything, we don't have any persistence adapter in this example !
-    # but, you could send an email or something if you want in your subclass ;)
-    adapter.process()
-
-    adapter.layout = (
-        ('name', 'email'),
-        'password',
-        'password_confirm',
-    )
-    form.output() # HTML form !
-
-Just model
-----------
-
-.. code-block:: python
-
-    from adapters import shortcuts as adapters
-
-    class Person(models.Model):
-        name = models.CharField(blank=False)
-
-    adapter = adapters.django.Model(Person)
-    adapter.adapt(Person())
-
-    adapter.validate({
-        'name': '',
-    })
-
-    assert adapter.errors == dict(
-        name=['Must not be blank'],
-    )
-
-    adapter.validate({
-        'name': 'hello',
-    })
-
-    assert not adapter.errors
-
-    result = adapter.process()
-    assert result.pk
-    assert respolt.name == 'hello'
-
-Chaining adapters
-=================
-
-All the fun happens when composing adapters with each other and build a tree.
-
-Create
-------
-
-.. code-block:: python
-
-    from adapters import shortcuts as adapters
-    from .models import Person
-
-    model_adapter = adapters.django.Model(Person)
-    model_adapter.adapt(Person())
-
-    forms_adapter = adapters.django.Forms(model_adapter)
-    assert form_adapter.fields == model_adapter.fields
-
-    json_adapter = adapters.json.Adapter(model_adapter)
-    assert json_adapter.fields == model_adapter.fields
-
-    # another option, would be:
-    # json_adapter = adapters.json.Adapter(forms_adapter)
-    # in this example it would result in the same
-
-    if request.method == 'POST':
-        # We'll switch presentational adapter here, cause they both have the
-        # same persistence adapter so for db business logic we'll have the same
-        if request.is_ajax():
-            adapter = json_adapter
-            data = request.json()
-        else:
-            adapter = forms_adapter
-            data = request.POST
-
-        # should propagate in the adapter chain ! yay
-        processed_data, errors = adapter.validate(data)
-
-        if not errors:
-            result = adapter.process(adapter.processed_data)
-            assert result.pk # you have created a model
-
-
-    if request.is_ajax():
-        # return HTML form string with your layout
-        return forms_adapter.output(layout)
-    else:
-        # return JSON interface, errors and all
-        return json_adapter.output()
-
-Update
-------
-
-.. code-block:: python
-
-    from adapters import shortcuts as adapters
-    from .models import Person
-
-    model_adapter = adapters.django.Model(Person)
-    model_adapter.adapt(Person.objects.get(pk=1))
-
-    assert model_adapter.initial = {'name': 'hello'}
-
-With inline
------------
-
-.. code-block:: python
-
-    from adapters import shortcuts as adapters
-    from .models import Person, Pet
-
-    pet_model_adapter = adapters.django.Relation(Person.pet_set)
-    model_adapter = adapters.django.Model(Person, dict(
-        pet_set=pet_model_adapter
-    ))
-    model_adapter.adapt(Person())
-
-    form_adapter = adapters.django.Form(model_adapter)
-    # rest is the same
-
-But if you want to define your own form for the inline, it's the same pattern:
-
-.. code-block:: python
-
-    pet_form_adapter = adapters.List(adapters.django.Form(pet_model_adapter))
-    form_adapter = adapters.django.FormsAdapter(model_adapter, dict(
-        pet_set=pet_form_adapter,
-    ))
-
-With nested inline
-------------------
-
-.. code-block:: python
-
-    from adapters import shortcuts as adapters
-    from .models import Person, Pet, Toy
-
-    toy_model_adapter = adapters.django.Model(Pet.toy_set)
-    pet_model_adapter = adapters.django.ModelListAdapter(Person.pet_set, dict(
-        toy_set=adapter.List(toy_model_adapter),
-    ))
-    model_adapter = adapters.django.Model(Person, dict(
-        pet_set=adapters.List(pet_model_adapter)
-    ))
-    # should work both in create and update mode
-    model_adapter.adapt(Person.objects.filter(pk=1) or Person())
-
-    form_adapter = adapters.django.Form(model_adapter)
-    json_adapter = adapters.json.Adapter(model_adapter)
-    # rest is the same
-
-But if we want to override defaults, same as above:
-
-.. code-block:: python
-
-    toy_json_adapter = adapters.json.Adapter(toy_model_adapter)
-    pet_json_adapter = adapters.json.Adapter(pet_model_adapter, dict(
-        toy_set=adapters.List(toy_json_adapter),
-    ))
-    json_adapter = adapters.json.Adapter(model_adapter, dict(
-        pet_set=adapters.List(pet_json_adapter),
-    ))
-
-
-    toy_form_adapter = adapters.django.Form(toy_model_adapter)
-    pet_form_adapter = adapters.django.Form(pet_model_adapter, dict(
-        toy_set=adapters.List(toy_form_adapter),
-    ))
-    form_adapter = adapters.django.Form(model_adapter, dict(
-        pet_set=adapters.List(pet_form_adapter),
-    ))
-
-Schema Mutations
-================
-
-Going beyond what you've ever seen, inspired from schematics blacklist feature,
-in an extensible way like yourlabs/facond.
-
-Removing a choice based on the value of another field
------------------------------------------------------
-
-Consider such a Linux shop which offers support and format of computers with
-Linux, and only Format for computers with Windows, they make a beautiful Web
-2.0 form::
-
-    Platform: [ ] Linux [ ] Windows
-    Service: [ ] Support [ ] Format
-
-The form should look either like this::
-
-    Platform: [ ] Linux [X] Windows
-    Service: [ ] Format
-
-Or that::
-
-    Platform: [X] Linux [ ] Windows
-    Service: [ ] Support [ ] Format
-
-But, God forbids, a user shouldn't **ever** be able to select both "Windows"
-and "Support", we don't want this to happen **or kittens will die**::
-
-    Platform: [ ] Linux [X] Windows
-    Service: [X] Support [ ] Format
-
-We want to ensure this behaves properly during initial rendering,
-validation, rerendering, and of course live in the browser.<Paste>
-
-.. code-block:: python
-
-    from adapters import shortcuts as adapters
-
-    # for the example use the base adapter which just deals with the schema and
-    # data
-    adapter = adapters.Adapter()
-
-    adapter.field_add(adapters.fields.Choice('platform', (
-        ('linux', 'Linux'),
-        ('windows', 'Windows'),
-    )))
-    adapter.field_add(adapters.fields.Choice('service', (
-        ('support', 'Support'),
-        ('format', 'Format'),
-    ))
-
-    adapter.mutation_add(
-        adapters.mutations.ChoiceRemove(
-            'service', ['support'],
+        initial=lambda self: (
+            self.initial = copy(self.instance.__dict__)
+            if self.instance else None
         ),
-        conditions=[
-            adapters.validators.ValueEqual('platform', 'windows'),
-        ]
+        process=lambda self: (
+            self.instance.__dict__.update(self.data) # warning: this is not real code !
+            and self.instance.save()
+        ),
+        # if we wanted to enforce, wed drop the 'or' and push last!
+        ordering=adapters.APPEND
+
+        # instanciate() creates a clone, throw away test !
+    ).steps.instanciate().instance == Person(pk=1)
+
+    # Let's map adapters to for when data is a dict !
+
+    # Factory for string returns a String Adapter !
+    a = a.map.add('name', '')
+
+    # Like a happy Poney on a completely different yet compatible syntax !
+    a = a.map.add(Email(name='email', required=False))
+
+    a = a.validate({'email': 'bar'})
+
+    assert a.errors = {
+        'map': {
+            'email': ['not valid'],
+            'name': ['required'],
+        }
+    }
+
+    # mutation on the go for hacking poneys !
+    a.map.email.required = True
+    assert a.validate({'name': 'aoeu'}).errors = {
+        'map': {
+            'email': ['required'],
+        }
+    }
+
+    a = a.map.email.adapters.add(
+        'FunkyInitialEmail',
+        # warning ! self.initial maps to adapter.initial['email'] !
+        # because this adapter is constructed in a map with key 'email' !
+        initial=lambda self: self.initial = self.initial or 'sly@stonefamily.com'
+        # If this didn't have the or we could set the order
+        # but the or makes it so that even APPEND would work so who care !
+        # it's here for the example because it's fun !
+        ordering=adapters.PREPEND
     )
 
-    # Should play mutations before executing validation
-    adapter.validate({'service': 'support', 'platform': 'windows'})
+    a = a.steps.initial() # clone !
 
-    assert adapter.errors == dict(
-        service=['support is not a valid choice if platform is windows'],
-        platform=['platform is not a valid choice if service is windows'],
+    assert a.initial = {'name': 'hello', 'email': 'foo@bar.com'}
+    assert a.instance == Person(pk=1)
+
+    # warning ! setting adapter on adapter *map* ! self.data maps to the data
+    # on the map owner's data !
+    a = a.map.name.adapters.add(
+        'LowerCase',
+        # this will set adapter.data['name'], bound to self.data !
+        # because this creates a *map* adapter on the fly for adapter !
+        clean=lambda self: self.data = self.data.lower()
     )
 
-Removing a field based on the value of another field
-----------------------------------------------------
+    # clean clones 4 ur clean clone !
+    assert a.steps.clean({'name': 'AOE'}).data['name'] == 'aoe'
 
-Another example, to remove field "service" for platform=windows, in this case
-we have 2 possibilities::
+    # Time to show off for some user love !
+    assert a.adapters.add('elementui.Form').steps.render().output == '<an awesome form>'
 
-    Platform: [X] Linux [ ] Windows
-    Service: [ ] Format [ ] Support
+    # So yeah, this kind of presentational adapters will love visiting a's map
+    # and add()'s adapters the see fit !
+    assert a.adapters.add('googlemdc.Form').steps.render().output == '<an awesome form>'
 
-Or::
+    # send welcome email to new users !
+    assert a.adapters.add(
+        'WelcomeEmail',
+        # self.instance maps to adapter.instance because this is not added in a
+        # map ! If you can have idempotent processes then you are a smart rascal !
+        process=lamba self: ensure_mail_sent(self.instance)
+    ).steps.process() # remember the first adapter we added, it will call instance.save() !
 
-    Platform: [ ] Linux [X] Windows
-
-So, we have the same as above, except we add a different mutation:
-
-.. code-block:: python
-
-    adapter.mutation_add(
-        adapters.mutations.FieldRemove('service'),
-        conditions=[
-            adapters.validators.ValueEqual('platform', 'windows'),
-        ]
-    )
-
-    # Should play mutations before executing validation
-    adapter.validate({'service': 'support', 'platform': 'windows'})
-
-    assert adapter.errors == dict(
-        non_field=['support is not a field if platform is windows'],
-    )
-
-Dynamic fields
---------------
-
-.. code-block:: python
-
-    from adapters import shortcuts as adapters
-
-    adapter = adapters.django.FormsAdapter()
-
-    adapter.field_add(adapters.fields.Choice('role', (
-        ('archer', 'Archer'),
-        ('musician', 'Musician'),
-    ))
-    adapter.field_add(
-        adapters.fields.django.ModelMultipleChoice('hobbies', Hobby.objects.all())
-    )
-    adapter.mutation_add(
-        adapters.mutations.ModelChoice(
-            'hobbies',
-            lambda a: Hobby.objects.filter(
-                role=a.processed_data['role']
+    # Now to some silly adapters we'll just derive from and instanciate like poneys !
+    a = a.adapters.add(
+        'PlatformServiceFilter',
+        # This is a two way filter ! add() calls mutate() like a poney !
+        mutate=lambda self: (
+            self.adapters.add(
+                'ServicePlatformFilter',
+                # And invent magic steps like a little poney ! Probably should be called by a.steps.clean() !
+                # Some validations will only by doable after clean, and triggered only by value change !
+                change=lambda self: (
+                    self.data['service'] in self.data['platform'].service_set.all()
+                    or raise Error('Service not compatible with platform you little rascal !')
+                ),
+                clone=False, # inplace like a magic poney !
             )
+        ),
+        # On value change callback because client + server = <3 <3 <3
+        change=lambda self: (
+            self.data['platform'] in self.data['service'].platform_set.all()
+            or raise Error('Platform not compatible with service you little rascal !')
+        ),
+        process=lambda self: PlatformService.objects.update_or_create(
+            service=self.data['service'],
+            platform=self.data['platform']
         )
     )
 
-This means that if there is any frontend, it should refresh "hobbies" list
-every time a value changes, and clear the field value if set and incompatible.
+    # But the above is too much boilerplate code ! No problem for Django has a DRY trick !
+    del a.adapters.PlatformServiceFilter
 
-If we want to declare which field has that side effect and update the hobbies
-list only when that field changes:
-
-.. code-block:: python
-
-    adapter.mutation_add(
-        adapters.mutations.ModelChoice(
-            'hobbies',
-            lambda a: Hobby.objects.filter(
-                role=a.processed_data['role']
-            ),
-            triggers=adapters.events.Input('role'),
-        )
+    # Django comes to the rescue once again !
+    a = a.adapters.add(
+        'django.ModelChoiceFilter',
+        Platform.service,
+        **options, # i have no idea but that's going to be something for sure !
     )
 
-Or, we could also have a higher level mutation which can do this with less
-code:
+    # Ok let's add a autocomplete widget !
+    class AutocompleteAdapter(Adapter):
+        def get_url(self):
+            try:
+                rel_model = self.instance._meta.get_field_by_name(self.name).rel.to
+            except: # risk taking yay lets spice that up then
+                return
 
-.. code-block:: python
+            return get_model_autocomplete(rel_model)
 
-    adapter.mutation_add(
-        adapters.mutations.ModelChoiceFilter(
-            'hobbies', # field to mutate
-            'role', # filter argument name
-            'role', # field name for filter argument value
-        )
-    )
+        def adapts(self):
+            return True if self.get_url()
 
-Or even, DRYer:
-
-.. code-block:: python
-
-    adapter.mutation_add(
-        adapters.mutations.ModelChoiceFilter(
-            'hobbies', # field to mutate
-            'role', # one arg only ? will do role=data['role'] !
-        )
-    )
-
-With autocompletion please dear:
-
-.. code-block:: python
-
-    from adapters import shortcuts as adapters
-    from .models import Person
-
-    model_adapter = adapters.django.ModelAdapter(Person)
-    form_adapter = adapters.django.FormsAdapter(model_adapter)
-
-    adapter.mutation_add(
-        adapters.mutations.ModelChoice(
-            'hobbies',
-            lambda a: Hobby.objects.filter(
-                role=a.processed_data['role']
-            )
-        )
-    )
-
-    # this will add field on form_adapter, but leave model_adapter's generated
-    # field:
-    form_adapter.field_add(
-        adapters.fields.django.ModelMultipleAutocomplete('hobbies', Hobby.objects.all())
-    )
-
-Level 3 Hacking API Daydream
-============================
-
-Hooooking schema declaration !
-------------------------------
-
-Your app provides a widget with splidid.js, in splindid/apps.py you add:
-
-.. code-block:: python
-
-    from adapters.signals import field_initialize
-
-    def splindid_field_initialize(sender, field, **kwargs):
-        autocomplete_url = splindid.find_url_for_model(model)
-
-        if autocomplete_url:
-            # decorate field with SplendidField
-            return SplindidField(field, autocomplete_url)
-
-    # already a little exciting
-    field_initialize.connect(splindid_field_initialize,
-        sender=adapters.django.ModelChoiceField)
-
-Mind blowing declarative API !
-------------------------------
-
-.. code-block:: python
-
-    class YourFormAdapter(adapters.django.adapters.Model):
-        class Meta:
-            model = Order
-
-        def field_initialize(self, field):
-            """This is called by Adapter every time a field is added.
-
-            And a field can be added with field_add(), but also if a parent
-            adapter is passed to __init__() !
+        def mutate(self): # mutates, if adapts !
             """
-            super().field_initialize(field)
+            i'm too tired for that last bit sorry """
+            self.map.set(self.field.name, adapters.add(
+            # Let's consider Attribut
+            # i don't remember what's the incantation with _meta rel that doesn't spawn over lines of code
+            rel_model = get_rel_model(self.instance, self.name)
+            rel = gettr(self.instance._he, self.name)
 
-        name = adapters.fields.String(help_text='Your real name')
-
-        name_email = adapters.Validator(
-            lambda data: data['name'] in data['email'],
-            'Your name must be in your email', # example is silly, but short !
-        )
-
-        # Comply with
-        #
-        #    Order.limit_choices_to =
-        #       lambda self: Service.objects.filter(platform=self.platform)
-        #
-        # oh god i'm excited to hack client side for this **once** **and**
-        # **for** **all**
-        service_filter = adapters.mutations.ModelChoiceFilter('platform', 'service')
+            if re.match(self.data, 'https://soundcloud.com.*'):
+    # For when the factory factorizes for a ForeignKey !
+    adapters.register(ForeignKey)

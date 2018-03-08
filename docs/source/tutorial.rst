@@ -7,7 +7,7 @@ adapter = Adapter()
 
 An adapter has adapters, because everything is an adapter::
 
-    a.adapters = [DjangoModelAdapter(Person.objects.get(pk=1)]
+    a.adapters = [DjangoModelAdapter(Person.objects.get(pk=1))]
 
 An adapter can have a data map like a dict, mapping keys to .. adapters::
 
@@ -41,12 +41,28 @@ Then serve their dear users::
     assert isinstance(adapter, DjangoModelAdapter)
     assert adapter.instance.pk == 1
     assert adapter.initial == {'name': 'sly'}
+    # DjangoModelAdapter populated its .map
+    assert isinstance(adapter.map.name, StringAdapter)
+
+Custom adapters can do anything, even ::
+
+    # Example to add an adapter which will just remove fields from map
+    adapter = adapters.add(UnauthenticatedUserPersonFields)
+
+    class UnauthenticatedUserPersonFields(AdapterInterface):
+        def post_add(self):
+            # Adding an adapter calls its post_add() method, if exists
+            del self.parent.map.admin_only_field_name
 
 And be lists too::
 
     adapter = adapters.factory(person.pet_set)
-    assert QuerySetAdapter in adapter.adapters  # for data
-    assert ModelAdapter in adapters.map.adapters  # for data items
+    assert adapter.listmap  # this has listmap instead of map
+
+And still have adapters on itself, and for items::
+
+    assert isinstance(adapter, RelatedFieldAdapter)
+    assert isinstance(adapter.listmap.adapters[0], DjangoModelAdapter)
 
 Story of a Pythonesque IOC bootstrapping for avidusers
 =======================================================

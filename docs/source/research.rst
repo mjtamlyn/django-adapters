@@ -21,6 +21,41 @@ order).
     >>> v.validate(document)
     True
 
+Similar with adapters:
+
+.. code-block:: python
+
+    >>> a = adapters.factory({'name': ''})
+    >>> a = a.validate({'name': 'john doe'})
+    >>> not a.allerrors
+    True
+
+Or don't rely on the factory to map a StringAdapter to the name key:
+
+.. code-block:: python
+
+    >>> a = DictAdapter(map=dict(name=StringAdapter()))
+    >>> a = a.validate({'name': 'john doe'})
+    >>> not a.allerrors
+    True
+
+Or go with an actual adapter restore, but it's a bit more lengthy as the
+dump/restore feature is meant to replicate adapter trees ie. on the client, not
+really to be hand writen:
+
+.. code-block:: python
+
+    >>> a = adapters.restore({
+        '_cls': 'adapters.DictAdapter',
+        'map': {
+            'name': {
+                '_cls': 'adapters.StringAdapter',
+            }
+        }
+    })
+    >>> a = a.validate({'name': 'john doe'})
+    >>> not a.allerrors
+    True
 
 `Chainable Validators <https://github.com/Outernet-Project/chainable-validators>`_
 ----------------------------------------------------------------------------------
@@ -35,6 +70,25 @@ order).
     ...     'baz': [optional, boolean],
     ... }
 
+In adapters the same example would be:
+
+.. code-block:: python
+
+    >>> a = DictAdapter(map={
+        'foo': IntAdapter(),
+        'bar': RegexAdapter(r'te.*'),
+        'baz': BooleadAdapter(required=False),
+    })
+
+But to demonstrate chaining:
+
+.. code-block:: python
+
+    >>> a = a.map.positiveintstring = Adapter(adapters=(
+        StringAdapter(),
+        IntAdapter(greater_than=0),
+        StringAdapter()
+    )
 
 `Colander <http://docs.pylonsproject.org/projects/colander/>`_
 --------------------------------------------------------------

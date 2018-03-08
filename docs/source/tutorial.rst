@@ -75,7 +75,8 @@ javascript.
                 pk=self.data['pk']).first()
         )
         initial=lambda self: (
-            self.initial = copy(self.instance.__dict__)
+            self.initial = self.initial # something like that
+            or copy(self.instance.__dict__)
             if self.instance else None
         ),
         process=lambda self: (
@@ -218,3 +219,24 @@ javascript.
             if re.match(self.data, 'https://soundcloud.com.*'):
     # For when the factory factorizes for a ForeignKey !
     adapters.register(ForeignKey)
+
+Declarative
+-----------
+
+Any attribute which is an adapter will be **mapped** in declarative::
+
+    class YourStringAdapter(adapters.Adapter):
+        def validate(self, data):
+            return True in data in self.parent.instance['otherfield']
+
+        def clean(self, data):
+            return data + self.parent.instance['otherfield']  # whatever
+
+
+    class YourAdapter(adapters.Declarative):
+        # this will be self.map.somefield ! We only take the validate method !
+        somefield = YourStringAdapter(adapters=moreadapters, steps=['validate'])
+
+        class Meta:
+            # adapter still takes other adapters !
+            adapters = (DjangoModel, DjangoForm)

@@ -2,8 +2,80 @@
 Tutorial
 ========
 
-adapter = Adapter()
-===================
+What's the point
+================
+
+It seems to me that what adapters tries to do is invent a new pattern to
+solve the kind of problems we usually deal with as developers:
+
+- fetch data from some source, using various python libraries for example,
+  converting settings into things like API urls and whatnot,
+- make a friendly data submission interface striving to help the user fix his
+  data input until valid, the more friendly it is, the less Humans will be
+  waiting for our answers on how exactly it is usable: iterative validation
+- process the valid data which means executing various steps, from writing a
+  file to sending an email or triggering a channels job, and outputing
+  something, an json dump, an html body, a response object, or something
+
+What's the story
+================
+
+In short, we create a Payload that will traverse several steps, what happens
+during a Step is defined by the Adapters attached to the payload.
+
+Payload may have any attributes, but some are more common than others:
+
+- instance,
+- instances,
+- initial,
+- data,
+- rendered,
+
+You can attach Adapters to a Payload, but also map them to keys in case Payload
+data expects a dict of data ... which become payloads on their own, or attach
+Adapters to Payload's list items in case it expects a List of data. Payloads
+are infinitely recursive in theory.
+
+Adapters can define any steps they want, but some are more common:
+
+- instanciate, for example fetch some data, setup payload instance,
+- initialize, set initial data, for example from the payload's instance,
+- validate, fills up the payload errors, but don't actually change data,
+- clean, changes data as adapters see fit and fill up the payload errors,
+- process, save data and other kind of business logic,
+- render, render some output like html or json,
+
+If Payload is data, Adapters is a bunch of features, Steps is the orchestrator.
+
+Getting started
+===============
+
+You can create a payload from the factory::
+
+    p = payloads.factory(initial={'name': ''})
+
+The factory figured we were going to deal with a dict payload::
+
+    assert 'Dict' in p.adapters.keys()
+
+And maped a subpayload for the 'name' key with a string adapter::
+
+    assert 'String' in p.map.name.adapters.keys()
+
+Now that we have a map payload, we can create a django form::
+
+    p = p.adapters.add('django.forms.Form')
+
+Adding an adapter calls its post_add() method which allows it to issue payload
+or other adapter mutations, that's why it returns a clone of the payload::
+
+    assert p.adapters.get('django.forms.Form').form
+    assert p.map.name.adapters.get('django.forms.fields.CharField').boundfield
+
+
+Create a payload with an instance::
+
+    p = Payload(instance=Person.objects.get(pk=1))
 
 An adapter has adapters, because everything is an adapter::
 

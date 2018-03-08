@@ -38,6 +38,7 @@ An adapter can proudly represent their family::
 Then serve their dear users::
 
     adapter = adapters.factory(Person.objects.get(pk=1))
+    assert isinstance(adapter, DjangoModelAdapter)
     assert adapter.instance.pk == 1
     assert adapter.initial == {'name': 'sly'}
 
@@ -47,7 +48,7 @@ And be lists too::
     assert QuerySetAdapter in adapter.adapters  # for data
     assert ModelAdapter in adapters.map.adapters  # for data items
 
-Story of a Pythonesque IOC bootstrapping for avid users
+Story of a Pythonesque IOC bootstrapping for avidusers
 =======================================================
 
 IN this story a Django user seems to have an adventure with an IOC pattern
@@ -240,3 +241,14 @@ Any attribute which is an adapter will be **mapped** in declarative::
         class Meta:
             # adapter still takes other adapters !
             adapters = (DjangoModel, DjangoForm)
+
+Mixing steps
+------------
+
+Sometimes you are going to want to add cleaners in a validation chain. In this
+case, instead of adding to adapters, you can add to the step::
+
+    StringAdapter(validators=(IntAdapter.is_numeric, IntAdapter.typecast, IntAdapter(greater_than=0).steps('validation')))
+
+In this case, Adapter will iterate over validators, and make an Adapter only
+for validation with each.

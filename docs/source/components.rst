@@ -484,3 +484,18 @@ In adapters
     # Of course, you could have a formview step that would do this little logic
     # with this kind of IOC anything is possible, like, shooting yourself in
     # the foot
+
+    class ProcessFormAdapter(DjangoFormAdapter):
+        def mutate(self):
+            self.parent.steps.add('process_form_response')
+
+        def process_form_response(self):
+            a = a.steps.validate(self.request.POST)
+            if not a.allerrors:
+                a.process()
+            return a.steps.response().response
+
+    a = ProcessFormAdapter(adapters=[SendMailAdapter]).factory(request=request)
+    return a.process_form_response(request).response
+
+    # can this even work ? i wonder

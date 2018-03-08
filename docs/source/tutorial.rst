@@ -248,7 +248,13 @@ Mixing steps
 Sometimes you are going to want to add cleaners in a validation chain. In this
 case, instead of adding to adapters, you can add to the step::
 
-    StringAdapter(validators=(IntAdapter.is_numeric, IntAdapter.typecast, IntAdapter(greater_than=0).steps('validation')))
+    # setter magic will happen
+    StringAdapter().steps.validation.adapters = (IntAdapter.is_numeric, IntAdapter.typecast, IntAdapter(greater_than=0).steps('validation'))
+    # shortcut with a setter
+    StringAdapter().validators = ...
+    # but using that shortcut does not emphasize on the ability to add custom
+    # steps !
 
 In this case, Adapter will iterate over validators, and make an Adapter only
-for validation with each.
+for validation with each. Poney magic garanteed for this to even have a chance
+to work.

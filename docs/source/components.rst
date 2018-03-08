@@ -96,7 +96,7 @@ Or add another adapter that will add it for you::
     # when added, PasswordConfirmationFormAdapter will add a
     # PasswordConfirmFieldAdapter in .map.password_confirm.adapters
 
-In this case, you probably want to add the DjangoForm adapter::
+In this case, you probably want to add the django FormAdapter::
 
     a = a.add('django.Form')
 
@@ -104,6 +104,30 @@ Which will add form field adapters to the map. Of course you can also have
 other forms::
 
     a = a.add('elementui.Form')
+
+We maintain a map of adaptermodule.AdapterClass as strings, this helps having a
+certain isomorphism with other languages which can also map their classes to
+the sames, ie. javascript.
+
+Adapters package itself maps primitives to ``.``, so it will register
+``adapters.strings.String`` to ``.String``.
+
+But also, ``adapters.django.FormAdapter`` will map to ``django.Form``. This
+means that when it will output itself, it will be able to add its own adapter
+tree dump in a script tag inside the form, and JS can pick it up.
+
+This means you can reconstruct your Python adapter in JavaScript. Of course,
+python's string adapter's validate method will be the same in javascript's
+string adapter validate method. However, it can also export python code as
+bytecode, and Batavia could execute that bytecode on the client too.
+
+Also, you can register your own adapters, both in JS and Python and whatever
+language you need. Obviously, this is going to solve a fair amount of common
+problems with deal with, but of course create new problems too ! But problems
+about code reuse, cross language mappings, are the kind of problems I want to
+deal with, otherwise perhaps I should probably consider more seriously about
+moving to isomorphic Go or Node next year. Friends, let's take all the rabbit
+holes until we end up like Bobby Fischer, for the sport.
 
 Existing Data
 =============

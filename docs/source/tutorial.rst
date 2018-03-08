@@ -9,45 +9,55 @@ An adapter has adapters, because everything is an adapter::
 
     a.adapters = [DjangoModelAdapter(Person.objects.get(pk=1))]
 
-An adapter can have a data map like a dict, mapping keys to .. adapters::
+Adapters of an adapter share the same payload::
 
-    adapter.map.name.adapters.add('adapters.string.String')
+    a.adapters.DjangoModelAdapter.payload == a.payload
+    # a.payload.{instance,initial,data,errors,output,etc... add your own!}
 
-An adapter has steps, executing methods on its own clone, and adapters::
+An adapter can also map adapters, in which case it will work with dicts in
+payload.{data,initial}, mapping keys to .. adapters::
 
-    # adapter.steps.{initiate,validate,clean,process,render}
-    adapter = adapter.steps.validate({})
+    a.map.name.adapters.add('adapters.string.String')
 
-An adapter is also the payload of their little story, with properties::
+An adapter has steps, which may have side effects on the payload and the
+structure, so steps must return a clone (thx Ian !)::
 
-    # adapter.{instance,initial,data,errors,output}
-    assert adapter.errors = {
+    a = a.steps.validate({})
+
+Executing a step may add errors, in which case it is considered the step
+failed::
+
+    assert a.errors = {
         'map': {
             'name': ['Required !'],
         }
     }
 
-An adapter can be replaced with poney magic::
+An adapter can be replaced with poney magic, in which case it's your
+responsibility to clone first if you see fit::
 
-    adapter.map.name.adapters.String.required = False
+    a.map.name.adapters.String.required = False
 
 An adapter can proudly represent their family::
 
     adapters.register(DjangoModelAdapter)
 
-Then serve their dear users::
+And serve their dear users::
 
-    adapter = adapters.factory(Person.objects.get(pk=1))
-    assert isinstance(adapter, DjangoModelAdapter)
-    assert adapter.instance.pk == 1
-    assert adapter.initial == {'name': 'sly'}
-    # DjangoModelAdapter populated its .map
-    assert isinstance(adapter.map.name, StringAdapter)
+    a = adapters.factory(instance=Person.objects.get(pk=1))
 
-Custom adapters can do anything, even ::
+    assert isinstance(a, DjangoModelAdapter)
+
+    assert a.payload.instance.pk == 1
+    assert a.payload.initial == {'name': 'sly'}
+
+    # DjangoModelAdapter populated its .map from introspection of the model
+    assert isinstance(a.map.name, StringAdapter)
+
+Custom adapters can do anything::
 
     # Example to add an adapter which will just remove fields from map
-    adapter = adapters.add(UnauthenticatedUserPersonFields)
+    a = a.add(UnauthenticatedUserPersonFields)
 
     class UnauthenticatedUserPersonFields(AdapterInterface):
         def post_add(self):
@@ -64,8 +74,25 @@ And still have adapters on itself, and for items::
     assert isinstance(adapter, RelatedFieldAdapter)
     assert isinstance(adapter.listmap.adapters[0], DjangoModelAdapter)
 
+Pattern
+=======
+
+An adapter adapts a node in a data tree. Adapters which are on the same node
+shares their **errors**, **map** and **payload**. This defines a structure.
+
+An adapter has **steps**, an orchestration object which allows breaking down
+logic in several steps from adapters from different libraries, a critical piece
+of the pattern, as it encapsulate the various IOC logics.
+
+You can have your own steps or build them on the fly just like the adapter
+structure.
+
+Adapters are designed for reusability and register themselves, acheiving a
+certain isomorphism, that will bring more DRYness than ever, and help us win
+against tech debt (ie. code same logic in python and js).
+
 Story of a Pythonesque IOC bootstrapping for avidusers
-=======================================================
+------------------------------------------------------
 
 IN this story a Django user seems to have an adventure with an IOC pattern
 which takes no pride in generating adapter types on the fly to build a multi
@@ -85,26 +112,24 @@ javascript.
 
     a = a.add(  # this creates and instanciates an Adapter !
         'PersonModel',
-        instance=lambda self: (
-            # warning ! self.initial maps to adapter.initial because this is an
-            # adapter adapter not a map adapter !
-            self.instance = self.instance or Person.objects.filter(
+        instanciate=lambda self: (
+            self.payload.instance = self.payload.instance or Person.objects.filter(
                 pk=self.data['pk']).first()
         )
-        initial=lambda self: (
-            self.initial = self.initial # something like that
-            or copy(self.instance.__dict__)
-            if self.instance else None
+        initialize=lambda self: (
+            self.payload.initial = self.payload.initial # something like that
+            or copy(self.payload.instance.__dict__)
+            if self.payload.instance else None
         ),
         process=lambda self: (
-            self.instance.__dict__.update(self.data) # warning: this is not real code !
-            and self.instance.save()
+            self.payload.instance.__dict__.update(self.data) # warning: this is not real code !
+            and self.payload.instance.save()
         ),
         # if we wanted to enforce, wed drop the 'or' and push last!
         ordering=adapters.APPEND
 
         # instanciate() creates a clone, throw away test !
-    ).steps.instanciate().instance == Person(pk=1)
+    ).steps.instanciate().payload.instance == Person(pk=1)
 
     # Let's map adapters to for when data is a dict !
 
@@ -125,7 +150,7 @@ javascript.
 
     # mutation on the go for hacking poneys !
     a.map.email.required = True
-    assert a.validate({'name': 'aoeu'}).errors = {
+    assert a.validate(data={'name': 'aoeu'}).errors = {
         'map': {
             'email': ['required'],
         }
@@ -133,19 +158,16 @@ javascript.
 
     a = a.map.email.adapters.add(
         'FunkyInitialEmail',
-        # warning ! self.initial maps to adapter.initial['email'] !
+        # self.payload.initial maps to a.map.email.payloadd.initial['email'] !
         # because this adapter is constructed in a map with key 'email' !
-        initial=lambda self: self.initial = self.initial or 'sly@stonefamily.com'
-        # If this didn't have the or we could set the order
-        # but the or makes it so that even APPEND would work so who care !
-        # it's here for the example because it's fun !
-        ordering=adapters.PREPEND
+        initial=lambda self: self.payload.initial = (
+            self.payload.initial or 'sly@stonefamily.com')
     )
 
-    a = a.steps.initial() # clone !
+    a = a.steps.initialize() # clones !
 
-    assert a.initial = {'name': 'hello', 'email': 'foo@bar.com'}
-    assert a.instance == Person(pk=1)
+    assert a.payload.initial = {'name': 'hello', 'email': 'foo@bar.com'}
+    assert a.payload.instance == Person(pk=1)
 
     # warning ! setting adapter on adapter *map* ! self.data maps to the data
     # on the map owner's data !
@@ -153,38 +175,42 @@ javascript.
         'LowerCase',
         # this will set adapter.data['name'], bound to self.data !
         # because this creates a *map* adapter on the fly for adapter !
-        clean=lambda self: self.data = self.data.lower()
+        clean=lambda self: self.payload.data = self.payload.data.lower()
     )
 
     # clean clones 4 ur clean clone !
-    assert a.steps.clean({'name': 'AOE'}).data['name'] == 'aoe'
+    assert a.steps.clean(data={'name': 'AOE'}).data['name'] == 'aoe'
 
     # Time to show off for some user love !
-    assert a.adapters.add('elementui.Form').steps.render().rendered == '<an awesome form>'
+    assert a.adapters.add('elementui.Form').steps.render().payload.rendered == '<an awesome form>'
 
     # So yeah, this kind of presentational adapters will love visiting a's map
     # and add()'s adapters the see fit !
-    assert a.adapters.add('googlemdc.Form').steps.render().rendered == '<an awesome form>'
+    assert a.adapters.add('googlemdc.Form').steps.render().payload.rendered == '<an awesome form>'
+
+    # Let's just make an HTTP response !
+    assert a.adapters.add('django.ProcessFormResponse').steps.process().payload.response
 
     # send welcome email to new users !
     assert a.adapters.add(
         'WelcomeEmail',
-        # self.instance maps to adapter.instance because this is not added in a
-        # map ! If you can have idempotent processes then you are a smart rascal !
-        process=lamba self: ensure_mail_sent(self.instance)
+        # self.payload.instance maps to adapter.payload.instance because this
+        # is not added in a map ! If you can have idempotent processes then you
+        # are a smart poney maybe !
+        process=lamba self: ensure_mail_sent(self.payload.instance)
     ).steps.process() # remember the first adapter we added, it will call instance.save() !
 
     # Now to some silly adapters we'll just derive from and instanciate like poneys !
     a = a.adapters.add(
         'PlatformServiceFilter',
-        # This is a two way filter ! add() calls mutate() like a poney !
-        mutate=lambda self: (
+        # This is a two way filter ! add() calls post_add() like a poney !
+        post_add=lambda self: (
             self.adapters.add(
                 'ServicePlatformFilter',
-                # And invent magic steps like a little poney ! Probably should be called by a.steps.clean() !
+                # And invent magic steps like a little poney !
                 # Some validations will only by doable after clean, and triggered only by value change !
                 change=lambda self: (
-                    self.data['service'] in self.data['platform'].service_set.all()
+                    self.payload.data['service'] in self.payload.data['platform'].service_set.all()
                     or raise Error('Service not compatible with platform you little rascal !')
                 ),
                 clone=False, # inplace like a magic poney !
@@ -192,12 +218,12 @@ javascript.
         ),
         # On value change callback because client + server = <3 <3 <3
         change=lambda self: (
-            self.data['platform'] in self.data['service'].platform_set.all()
+            self.payload.data['platform'] in self.data.payload['service'].platform_set.all()
             or raise Error('Platform not compatible with service you little rascal !')
         ),
         process=lambda self: PlatformService.objects.update_or_create(
-            service=self.data['service'],
-            platform=self.data['platform']
+            service=self.payload.data['service'],
+            platform=self.payload.data['platform']
         )
     )
 
@@ -212,10 +238,10 @@ javascript.
     )
 
     # Ok let's add a autocomplete widget !
-    class AutocompleteAdapter(Adapter):
+    class AutocompleteFormAdapter(AdapterInterface):
         def get_url(self):
             try:
-                rel_model = self.instance._meta.get_field_by_name(self.name).rel.to
+                rel_model = self.payload.instance._meta.get_field_by_name(self.name).rel.to
             except: # risk taking yay lets spice that up then
                 return
 
@@ -224,16 +250,12 @@ javascript.
         def adapts(self):
             return True if self.get_url()
 
-        def mutate(self): # mutates, if adapts !
-            """
-            i'm too tired for that last bit sorry """
-            self.map.set(self.field.name, adapters.add(
-            # Let's consider Attribut
-            # i don't remember what's the incantation with _meta rel that doesn't spawn over lines of code
-            rel_model = get_rel_model(self.instance, self.name)
-            rel = gettr(self.instance._he, self.name)
+        def post_add(self): # mutates, if adapts then will be added !
+            for field in self.find_compatible_fields(self.payload.instance):
+                # ok self.payload **and** self.map will be shared with other
+                # adapters of the same node !
+                self.map[field.name].adapters.add(AutocompleteForeignKeyAdapter())
 
-            if re.match(self.data, 'https://soundcloud.com.*'):
     # For when the factory factorizes for a ForeignKey !
     adapters.register(ForeignKey)
 
@@ -244,10 +266,10 @@ Any attribute which is an adapter will be **mapped** in declarative::
 
     class YourStringAdapter(adapters.Adapter):
         def validate(self, data):
-            return True in data in self.parent.instance['otherfield']
+            return True in data in self.parent.payload.instance['otherfield']
 
         def clean(self, data):
-            return data + self.parent.instance['otherfield']  # whatever
+            return data + self.parent.payload.instance['otherfield']  # whatever
 
 
     class YourAdapter(adapters.Declarative):

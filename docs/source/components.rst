@@ -77,6 +77,33 @@ in turn can be used by different "helper"-APIs like a
 should also have an API to easily create slightly modified (i.e., add this
 field, remove that field, add this validator) clones of itself.
 
+How adapters do construction
+----------------------------
+
+If going through the adapters.factory method for a django model, it will
+automatically return a DjangoModelAdapter and fill up its .map with other
+adapters per field::
+
+    a = adapters.factory(Person.objects.get(pk=1))
+
+Then you can modify the tree::
+
+    a = a.map.set('password_confirm', PasswordConfirmFieldAdapter())
+
+Or add another adapter that will add it for you::
+
+    a = a.adapters.add(PasswordConfirmationFormAdapter())
+    # when added, PasswordConfirmationFormAdapter will add a
+    # PasswordConfirmFieldAdapter in .map.password_confirm.adapters
+
+In this case, you probably want to add the DjangoForm adapter::
+
+    a = a.add('django.Form')
+
+Which will add form field adapters to the map. Of course you can also have
+other forms::
+
+    a = a.add('elementui.Form')
 
 Existing Data
 =============
@@ -119,12 +146,27 @@ the ``instance`` argument:
 
     form = MyModelForm(instance=existing_instance)
 
-
 How it could be done
 --------------------
 
 See "How it could be done" on the section "New Data".
 
+The factory helps with existing data
+------------------------------------
+
+The adapters.factory will try to return the best registered adapter for a data.
+For example::
+
+    assert isinstance(adapters.factory(Person()), DjangoModelAdapter)
+
+    class PersonAdapter(DeclarativeAdapter):
+        name = StringAdapter(...)
+
+        class Meta:
+            adapters = [PersonWelcomeEmail]
+
+    assert PersonAdapter.map.name == StringAdapter
+    # PersonWelcomeEmail will be in PersonAdapter.adapters
 
 New Data
 ========
@@ -171,6 +213,24 @@ the one returned from an HTML form serializer.
 Then an API must be established that lets you modify the loading of existing or
 new data easily.
 
+Data in adapters
+----------------
+
+In terms of data, adapters have several attributes, including::
+
+- instance
+- initial
+- data
+- output
+
+They can be modified during each step, that's why a step returns a clone.
+
+Steps like instanciate or initialize, if executed, may for example fetch data
+from an API or database.
+
+Adapters are a silly tree of python objects and act as shared payload, all the
+logic is executed by steps, you can add your own steps to if the default ones
+are not enough for you.
 
 Cleaning
 ========
@@ -274,6 +334,21 @@ How it could be done
 
 There are several libraries that explicitly deal with validation in Django.
 
+How cleaning works in adapters
+------------------------------
+
+Adapters have a default clean step logic baked in, but you can override it with
+your own::
+
+    a.steps.validate = your_validate
+
+But you can also enhance the default logic without replacing it::
+
+    a.steps.validate.adapters = (list of adapters or callbacks)
+
+When passed callbacks, it will make it an Adapter with only validation.
+
+When passed adapters, it will use their validate method only.
 
 Rendering
 =========
@@ -314,6 +389,24 @@ How it could be done
 There are several libraries that deal with rendering and serialization of data
 in Django.
 
+Rendering in adapters
+---------------------
+
+Rendering is an optional step which uses all render methods of adapters and
+which can be decorated or redefined like every step.
+
+That step will populate the adapter.render variable, in a clone of course as
+with every step execution.
+
+Adapters without the render() method won't be executed. At the end of the day
+of course the step has the final word on what to execute and how, and by
+default it'll try to use the render() method of each adapter, which might in
+turn render its map, by executing the render() metod of each adapter it has in
+its map. Which, in turn, should execute the render() method of every adapters
+composing itself.
+
+We could have more steps than just render() and have render_html(),
+render_json() too.
 
 Data Output
 ===========
@@ -360,3 +453,34 @@ How it could be done
 There should be a way to specify actions that should be executed after all
 previous steps were completed successfully. This makes it easier to encapsulate
 the "Data Output" functionality and reduces duplication of code.
+
+In adapters
+-----------
+
+.. code-block:: python
+
+    class SendMailAdapter(AdapterInterface):
+        def process(self):
+            send_mail(
+                subject=self.data['subject'],
+                message=self.data['message'],
+                from_email='django@example.com',
+                recipient_list=[self.data['recipient']]
+            )
+
+        def response(self):
+            if self.is_valid:
+                self.response = redirect('success_page')
+            self.response = render(self.request, 'send_mail.html', self.rendered)
+
+
+    a = adapters.factory(SendMailForm)  # DjangoFormAdapter
+    a = a.adapters.add(SendMailAdapter)
+    a = a.steps.validate(request.POST)
+    if not a.allerrors:
+        a.process()
+    return a.steps.response().response
+
+    # Of course, you could have a formview step that would do this little logic
+    # with this kind of IOC anything is possible, like, shooting yourself in
+    # the foot

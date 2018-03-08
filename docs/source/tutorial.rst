@@ -160,11 +160,11 @@ javascript.
     assert a.steps.clean({'name': 'AOE'}).data['name'] == 'aoe'
 
     # Time to show off for some user love !
-    assert a.adapters.add('elementui.Form').steps.render().output == '<an awesome form>'
+    assert a.adapters.add('elementui.Form').steps.render().rendered == '<an awesome form>'
 
     # So yeah, this kind of presentational adapters will love visiting a's map
     # and add()'s adapters the see fit !
-    assert a.adapters.add('googlemdc.Form').steps.render().output == '<an awesome form>'
+    assert a.adapters.add('googlemdc.Form').steps.render().rendered == '<an awesome form>'
 
     # send welcome email to new users !
     assert a.adapters.add(
@@ -265,7 +265,7 @@ Sometimes you are going to want to add cleaners in a validation chain. In this
 case, instead of adding to adapters, you can add to the step::
 
     # setter magic will happen
-    StringAdapter().steps.validation.adapters = (IntAdapter.is_numeric, IntAdapter.typecast, IntAdapter(greater_than=0).steps('validation'))
+    StringAdapter().steps.validate.adapters = (IntAdapter.is_numeric, IntAdapter.typecast, IntAdapter(greater_than=0).steps('validation'))
     # shortcut with a setter
     StringAdapter().validators = ...
     # but using that shortcut does not emphasize on the ability to add custom

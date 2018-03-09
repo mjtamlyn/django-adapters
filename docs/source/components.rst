@@ -188,7 +188,7 @@ For example::
 Or, define your own adapter manually or with declarative syntax::
 
     class PersonAdapter(Adapter):
-        datamap = dict(
+        map = dict(
             name=StringAdapter(...)
         )
 
@@ -371,10 +371,11 @@ How cleaning works in adapters
     validators = [
         validate_illegal_characters,
         validate_banned_words,
+        lambda context: context.data != 'invalid'
     ]
 
     # only use them for validation
-    a.datamap.title.validators = validators
+    a.map.title.validate = validators
 
     a.steps.validate(data={'title': 'bannedword'}).errors
 

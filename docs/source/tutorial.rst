@@ -45,7 +45,7 @@ Adapters may have other adapters, or map them::
 
     # State can be augmented by passing args to a step, but also when instanciating
     assert StringAdapter(input=1).steps.clean().output == '1'
-    # Note that step clones
+    # Note that step returns clone
 
     assert ListAdapter(map=[StringAdapter()], input=[1]).steps.clean().output == ['1']
 
@@ -59,9 +59,16 @@ Adapters may have other adapters, or map them::
     assert a.map == dict(name=[CharFieldAdapter()])
 
     # Also have a factory to instanciate an Adapter which may adapt to a given state
-    assert adapters.factory(queryset=Person.objects.none()).listmap == [PersonAdapter]
+    assert adapters.factory(queryset=Person.objects.none()).map == [PersonAdapter]
 
-That's pretty much it.
+    # Making an Adapter for anything and adapters just loving each other
+    return ModelAdapter(
+        model=Person,
+        adapters=['django.FormAdapter', 'django.RequestResponseAdapter', 'yourestlib.RequestResponseAdapter']
+    ).steps.response(request=thatrequest).response
+    # augments the state with a request attribute, mutates all over, and adapters which
+    # adapt for that state will be able to write their parent's response
+    # attribute !
 
 Poneying
 ========

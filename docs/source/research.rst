@@ -56,7 +56,7 @@ Or construct in python yourself:
 
 .. code-block:: python
 
-    >>> a = DictAdapter(datamap=dict(name=StringAdapter(cast=False)))
+    >>> a = DictAdapter(map=dict(name=StringAdapter(cast=False)))
     >>> not a.steps.validate({'name': 'john doe'}).errors
     True
     >>> a.steps.validate({'name': object()}).errors

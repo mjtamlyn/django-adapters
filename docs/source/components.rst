@@ -561,11 +561,9 @@ In adapters
                     clone=False
                 )
 
-            if self.payload.errors:
-                return
-
-            if not self.payload.steps.procces.executed:
-                self.payload.steps.process(clone=False)
+            if not self.payload.errors:
+                if not self.payload.steps.procces.executed:
+                    self.payload.steps.process(clone=False)
 
             self.payload.response = render_to_response(
                 self.template_name,

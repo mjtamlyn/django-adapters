@@ -21,40 +21,37 @@ order).
     >>> v.validate(document)
     True
 
-Similar with adapters:
+The same system is possible with the dump/restore of Payload feature which is
+meant for transpilability (webassembly, batavia, pure js ...):
 
 .. code-block:: python
 
-    >>> a = adapters.factory({'name': ''})
-    >>> a = a.validate({'name': 'john doe'})
-    >>> not a.allerrors
+    >>> p = Payload.restore({
+        'adapters': [{'_cls': 'adapters.DictAdapter'}],
+        'map': {
+            'name': {'_cls': 'adapters.StringAdapter'}
+        }
+    })
+    >>> p = p.steps.validate({'name': 'john doe'})
+    >>> not p.errors
+    True
+
+But you'd probably be faster with the factory:
+
+.. code-block:: python
+
+    >>> p = Payload.factory({'name': ''})
+    >>> p = p.steps.validate({'name': 'john doe'})
+    >>> not p.errors
     True
 
 Or don't rely on the factory to map a StringAdapter to the name key:
 
 .. code-block:: python
 
-    >>> a = DictAdapter(map=dict(name=StringAdapter()))
-    >>> a = a.validate({'name': 'john doe'})
-    >>> not a.allerrors
-    True
-
-Or go with an actual adapter restore, but it's a bit more lengthy as the
-dump/restore feature is meant to replicate adapter trees ie. on the client, not
-really to be hand writen:
-
-.. code-block:: python
-
-    >>> a = adapters.restore({
-        '_cls': 'adapters.DictAdapter',
-        'map': {
-            'name': {
-                '_cls': 'adapters.StringAdapter',
-            }
-        }
-    })
-    >>> a = a.validate({'name': 'john doe'})
-    >>> not a.allerrors
+    >>> p = Payload(adapters=[DictAdapter], map=dict(name=StringAdapter()))
+    >>> p = p.steps.validate({'name': 'john doe'})
+    >>> not p.errors
     True
 
 `Chainable Validators <https://github.com/Outernet-Project/chainable-validators>`_
@@ -74,20 +71,21 @@ In adapters the same example would be:
 
 .. code-block:: python
 
-    >>> a = DictAdapter(map={
-        'foo': IntAdapter(),
-        'bar': RegexAdapter(r'te.*'),
-        'baz': BooleadAdapter(required=False),
+    >>> a = Payload(adapters=['DictAdapter'], map={
+        'foo': [adapters.Int()],
+        'bar': [adapters.Regex(r'te.*')],
+        'baz': [adapters.Boolean(required=False)],
     })
 
 But to demonstrate chaining:
 
 .. code-block:: python
 
-    >>> a = a.map.positiveintstring = Adapter(adapters=(
+    >>> p.map.positiveintstring.adapters = (
         StringAdapter(),
+        IntAdapter(cast=True),
         IntAdapter(greater_than=0),
-        StringAdapter()
+        StringAdapter() # convert back to string
     )
 
 `Colander <http://docs.pylonsproject.org/projects/colander/>`_

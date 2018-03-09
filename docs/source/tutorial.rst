@@ -20,22 +20,15 @@ solve the kind of problems we usually deal with as developers:
 What's the story
 ================
 
-In short, we create a Payload that will traverse several steps, what happens
-during a Step is defined by the Adapters attached to the Payload, how they are
-going to be executed is defined by the Steps themselves.
-
-Payload may have any attributes, but some are more common than others:
+An adapter may have any attributes, but some are more common than others:
 
 - instance,
 - instances,
 - initial,
 - data,
 - rendered,
-
-You can attach Adapters to a Payload, but also map them to keys in case Payload
-data expects a dict of data ... which become Payloads on their own, or attach
-Adapters to Payload's list items in case it expects a List of data. Payloads
-are infinitely recursive in theory.
+- input,
+- output,
 
 Adapters can define any steps they want, but some are more common:
 
@@ -46,159 +39,153 @@ Adapters can define any steps they want, but some are more common:
 - process, save data and other kind of business logic,
 - render, render some output like html or json,
 
-If Payload is data, Adapters is a bunch of features, Steps is the orchestrator.
+Adapters may have other adapters, or map them::
 
-Getting started
-===============
+    assert StringAdapter().steps.clean(input=1).output == '1'
 
-You can create a Payload from the factory::
+    # State can be augmented by passing args to a step, but also when instanciating
+    assert StringAdapter(input=1).steps.clean().output == '1'
+    # Note that step clones
 
-    p = Payloads.factory(initial={'name': ''})
+    assert ListAdapter(datamap=[StringAdapter()], input=[1]).steps.clean().output == ['1']
 
-The factory figured we were going to deal with a dict Payload::
+    # Let's fail validation
+    assert DictAdapter(datamap=dict(
+        name=StringAdapter(cast=False)
+    ), input={'name': 1}).steps.validate().errors == dict(name=['Is not a string'])
 
-    assert 'Dict' in p.adapters.keys()
+    # Instanciating an adapter sets its state and calls its mutate() step
+    a = ModelAdapter(instance=Person())
+    assert a.datamap == dict(name=[CharFieldAdapter()])
 
-And maped a subPayload for the 'name' key with a string adapter::
+    # Also have a factory to instanciate an Adapter which may adapt to a given state
+    assert adapters.factory(queryset=Person.objects.none()).listmap == [PersonAdapter]
 
-    assert 'String' in p.map.name.adapters.keys()
+That's pretty much it.
 
-Everytime we execute a step it will clone the Payload and execute the step on
-it::
+Poneying
+========
 
-    assert p.steps.validate('foo') !== p
-    assert p.steps.validate('foo').errors == {'self': ['Should be a dict!']}
-    assert p.steps.validate({'name': ''}).errors == {'map': {'name': ['required!']}}
+.. code-block:: python
 
-Now that we have a Payload map, we can create a django form::
+    class NameAdapter(StringAdapter):
+         # steps always executed in clean clone !
+         def validate(self):
+               if allcaps(self.data):
+                   self.errors.append('omg poney')
 
-    f = p.adapters.add('django.forms.Form')
+         def clean(self):
+               self.data = self.data.capitalize()
 
-Adding an adapter calls its post_add() method which allows it to issue Payload
-or other adapter mutations based on introspection, that's why add() returns a
-clone of the Payload::
+    assert NameAdapter(data='AUO').validate().errors == ['omg poney']
 
-    assert f.adapters.get('django.forms.Form').form == p.form
-    assert 'django.forms.fields.CharField' in f.map.name.adapters.keys()
-
-Both adapters of the Payload, share the same Payload::
-
-    assert f.adapters.first().Payload == f.adapters.last().Payload == p
-    assert f.adapters.first().Payload.map == f.map
-
-We can also render the form using the form adapter::
-
-    assert f.steps.render('html').rendered == '<an awesome form>'
-
-But given the generic nature of adapters, it might as well return a response
-from a request::
-
-    f = f.adapters.add('django.views.generic.FormView', template_name='form.html')
-    assert f.steps.process_request(request).response.status_code == 200
-
-If we want a different form rendering::
-
-    f = f.adapters.remove('django.forms.Form')
-    f = f.adapters.add('elementUi.Form')
-
-An adapter can be replaced with poney magic, in which case it's your
-responsibility to clone first if you see fit::
-
-    n = f.clone()
-    n.map.name.adapters.String.required = False
-    assert not n.validate({'name': ''}).errors
-
-You can also reset adapters on a Payload for a specific step::
-
-    n.clone().map.name.steps.validation.adapters = [
-        is_numeric, cast_to_int, greater_than(0)]
-
-Let's have another adapter for JSON::
-
-    j = p.adapters.add('json.Adapter')
-    assert j.validate('[]').errors == {'self': ['Must be dict']}
-    assert not j.validate('{"name": "foo"}').errors
-
-What about some friendly JSON api view like with DRF::
-
-    j = j.adapters.add('json.DjangoRequestResponse')
-    j.steps.process_request(request).response.status_code == 200
-
-An adapter can proudly represent their family::
-
-    adapters.register(DjangoModelAdapter)
-    # that will attach when factoring a Payload with instance=djangomodel
-
-And serve their dear users::
-
-    p = Payloads.factory(instance=Person.objects.get(pk=1))
-
-    assert 'DjangoModelAdapter' in p.adapters
-
-    assert p.instance.pk == 1
-    assert p.initial == {'name': 'sly'}
-
-    # DjangoModelAdapter populated its .map from introspection of the model
-    assert 'StringAdapter' in p.map.name.adapters
-
-Custom adapters can mutate the Payload structure::
-
-    # Example to add an adapter which will just remove fields from map
-    p = p.add(UnauthenticatedUserPersonFields)
-
-    class UnauthenticatedUserPersonFields(AdapterInterface):
-        def post_add(self):
-            # Adding an adapter calls its post_add() method, if exists
-            del self.map.admin_only_field_name
-
-Or just add custom validation::
-
-    class UnauthenticatedUserPersonFields(AdapterInterface):
-        def validate(self):
-            if not self.Payload.request.user.is_authenticated:
-                if 'admin_only_field_name' in self.Payload.request.POST:
-                    self.errors.append('Posting unauthorized field!')
-
-Payload also supports list maping, in which case map will be a list of adapters
-to execute against each item in the list::
-
-    p = Payload.factory(relation=person.pet_set)
-    assert 'RelatedFieldAdapter' in p.adapters # for the list
-    # map is not a dict ! but a list:
-    assert 'DjangoModelAdapter' in p.map.adapters # for items
-
-Any attribute which is an adapter will be **mapped** in declarative::
-
-    class YourStringAdapter(adapters.Adapter):
-        def validate(self, data):
-            return True in data in self.parent.Payload.instance['otherfield']
-
-        def clean(self, data):
-            return data + self.parent.Payload.instance['otherfield']  # whatever
-
-
-    class YourPayload(Payload):
-        # this will be self.map.somefield.adapters !
-        somefield = YourStringAdapter()
-        listfield = ListAdapter(
-            adapters=[FiveItems], # adapters for the list itself!
-            map=[StringAdapter]   # adapters for list items!
+    # declarative syntax, without metaclass
+    class PersonAdapter(DictAdapter):
+        map = dict(
+           name=NameAdapter(),
+           # instead of methods, AdapterInterface understands list of adapters
+           fakename=StringAdapter(clean=[NameAdapter.validate]),
+           # instead of methods, AdapterInterface understands list of callbacks
+           age=IntAdapter(clean=[is_numeric, cast_int, greater_than(0)]),
+           hobbies=adapters.factory(relation=PersonModel.hobbies),
+           # the above makes an adapter that accepts relation=RelatedFieldManager
+           extra=DictAdapter(map=dict(.......)) # recursiveness
         )
-        # demonstrate nesting !
-        dictfield = DictAdapter(
-            map=dict(
-                name=[StringAdapter],
-                extra=DictAdapter(
-                    map=dict(
-                        hobbies=ListAdapter(
-                            map=[HobbyAdapter]
-                        ),
-                    )
-                )
-            )
-        )
-        modelchoice = [ModelAdapter(model=SomeModel, fields=['onlythisfield'])]
+       adapters = [NoBadwordInString(), BootstrapFormAdapter(), RestAdapter()]
 
-        class Meta:
-            # adapter still takes other adapters !
-            adapters = (DjangoModel, DjangoForm, ReactForm)
+       def mutate(self):
+           '''called when the adapter is instanciated, or added to an adapter, or before a step executes, to keep fresh'''
+           super().mutate() # call other adapters mutate() recursively !
+           for key, value in self.map.items(): # introspection
+                quacks = getattr(value, 'quack', False)
+                if quacks:                     # leads to mutation mutation: new field example
+                     self.map.quack_extra = DuckAdapter(option='duckperson')
+           super().mutate() # let's do it again in case an adapter has some feature for quack_extra ?
+
+       def process(self):
+           super().process() # execute all own and maped adapters process() yes recursive
+           self.instance.__dict__ = self.data # if clean passed, we haz self.data !
+           self.instance.save()  # or something like that
+       process.require_step_success = ['clean']
+
+       def validate(self):
+           # call validate() on self.adapters and on mapped adapters, recursion !
+           super().validate()
+           if something(self.instance):
+               # will this be moved in its own adapter? time'll tell
+               self.errors.append('something happened')
+
+       def clean(self):
+            super().clean() # clean everything
+            self.data['alsoadd'] = somesecrets()
+
+       def render(self):
+           return my_custom_render_step(self.request, self)
+       render.require_variables = ['request']
+
+       def instanciate(self):
+            # i should have added ModelAdapter instead of doing this !
+            if getattr(self, 'pk', None):
+                self.instance = Person.objects.get(pk=self.pk)
+           elif getattr(self, 'data', None):
+                self.instance = Person(**self.data)
+           else:
+                self.instance = Person()
+
+       def initialize(self):
+            if getattr(self, 'instance', None):
+                self.initial = self.instance.__dict__  # lol naive
+            else:
+                super().initialize()
+
+       def response(self):
+          # this would be automatic but is here for the example i'm poneying my way out
+          # because where is DjangoRequestResponse adapter ?
+          # well not as far as you might think
+         if self.adapters.RestAdapter.adapts():  # can self.request.is_ajax or 'MAGIC' in self.request.pathinfo()
+               self.adapters.RestAdapter.response() # sets self.response of course !
+           if self.adapters.BootstrapFormAdapter.adapts():
+               self.adapters.BootstrapFormAdapter.render()  # sets self.rendered of course !
+               self.adapters.add('TemplateAdapter', clone=False)
+               self.template = 'lol.html'
+               # set self.rendered, after using self.rendered in the template of course !
+               # but it could use self.instance if it wanted to !
+               self.adapters.TemplateAdapter.render()
+           else:
+               # set some response !
+               self.response = Response('wtf you poney !')
+       response.require_variables = ['request']
+
+       def adapts(self): # used by factory
+           return isinstance(getattr(self, 'instance', None), PersonModel)
+
+
+    # steps magical call method will actualy clone the adapter
+    # and add the new arguments passed to the step to the adapter's state
+    # and call mutate on all adapters
+    # and call the adapter's method
+    # to execute all call super().yourmethod()
+
+    a = PersonAdapter().steps.validate(data={'name':'AOU'})
+    assert a.errors = dict(map=dict(name='omg poney'))
+
+    a = a.steps.clean(data={'name':'aoeu'})
+    assert not a.instance
+    a = a.steps.process()
+    assert a.instance.pk
+    a = a.steps.response()
+    assert a.response
+
+    PersonAdapter(instance=PersonModel()).steps.render(request=request).response
+    # or adapters.register(PersoneAdapter); adapters.factory(instance=person).steps.render ... thx to PersonAdapter.adapts !
+
+    class PersonQuerysetAdapter(ListAdapter):
+        map = [PersonAdapter] # one PersonAdapter per list item !
+        # more steps overrides, more adapters
+        def adapts(self):
+             # why did i not add QuerySetAdapter ? For the sake of the example and Poney !
+             return self.queryset.model == Persone
+        adapts.require_variables = 'queryeset'
+
+    adapters.register(PersonListAdapter)
+    adapters.factory(queryset=Person.objects.none()) # build adapter for

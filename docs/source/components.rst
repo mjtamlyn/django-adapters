@@ -89,7 +89,7 @@ with other adapters per field::
 Then you can modify the tree::
 
     p = p.clone()
-    p.map.password_confirm = PasswordConfirmFieldAdapter()
+    p.map.password_confirm.adapters = [PasswordConfirmFieldAdapter()]
     assert 'PasswordConfirmationFormAdapter' in p.map.password_confirm.adapters
 
 Or add another adapter that will add it for you::

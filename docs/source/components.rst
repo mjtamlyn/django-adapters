@@ -84,11 +84,13 @@ If going through the payloads.factory method for a django model, it will
 automatically return a Payload with a DjangoModelAdapter and fill up its .map
 with other adapters per field::
 
-    p = payloads.factory(instance=Person.objects.get(pk=1))
+    p = Payload.factory(instance=Person.objects.get(pk=1))
 
 Then you can modify the tree::
 
-    p = p.clone()
+    # feel free to p.clone() if you see fit, if you have already executed a step
+    # you would probably have to (it's what specifies Marc's writeup, but Ian
+    # suggested we could always return a clone when executing a step)
     p.map.password_confirm.adapters = [PasswordConfirmFieldAdapter()]
     assert 'PasswordConfirmationFormAdapter' in p.map.password_confirm.adapters
 

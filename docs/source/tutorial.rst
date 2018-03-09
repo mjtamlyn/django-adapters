@@ -159,12 +159,13 @@ Or just add custom validation::
                 if 'admin_only_field_name' in self.Payload.request.POST:
                     self.errors.append('Posting unauthorized field!')
 
-Payload also supports list, and things that look like lists::
+Payload also supports list maping, in which case map will be a list of adapters
+to execute against each item in the list::
 
     p = Payload.factory(relation=person.pet_set)
-    assert p.listmap  # this has listmap of adapters instead of map
     assert 'RelatedFieldAdapter' in p.adapters # for the list
-    assert 'DjangoModelAdapter' in p.listmap.adapters # for items
+    # map is not a dict ! but a list:
+    assert 'DjangoModelAdapter' in p.map.adapters # for items
 
 Any attribute which is an adapter will be **mapped** in declarative::
 
@@ -179,9 +180,24 @@ Any attribute which is an adapter will be **mapped** in declarative::
     class YourPayload(Payload):
         # this will be self.map.somefield.adapters !
         somefield = YourStringAdapter()
-        listfield = ListAdapter(listmap=[StringAdapter])
-        dictfield = DictAdapter(map=...)
-        modelchoice = ModelAdapter()
+        listfield = ListAdapter(
+            adapters=[FiveItems], # adapters for the list itself!
+            map=[StringAdapter]   # adapters for list items!
+        )
+        # demonstrate nesting !
+        dictfield = DictAdapter(
+            map=dict(
+                name=[StringAdapter],
+                extra=DictAdapter(
+                    map=dict(
+                        hobbies=ListAdapter(
+                            map=[HobbyAdapter]
+                        ),
+                    )
+                )
+            )
+        )
+        modelchoice = [ModelAdapter(model=SomeModel, fields=['onlythisfield'])]
 
         class Meta:
             # adapter still takes other adapters !

@@ -21,6 +21,15 @@ order).
     >>> v.validate(document)
     True
 
+With CerberusAdapter:
+
+.. code-block:: python
+
+    >>> schema = {'name': {'type': 'string'}}
+    >>> document = {'name': 'john doe'}
+    >>> not CerberusAdapter(schema=schema).validate(data=document).errors
+    True
+
 The same system is possible with the dump/restore of Payload feature which is
 meant for transpilability (webassembly, batavia, pure js ...):
 

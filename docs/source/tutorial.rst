@@ -47,16 +47,16 @@ Adapters may have other adapters, or map them::
     assert StringAdapter(input=1).steps.clean().output == '1'
     # Note that step clones
 
-    assert ListAdapter(datamap=[StringAdapter()], input=[1]).steps.clean().output == ['1']
+    assert ListAdapter(map=[StringAdapter()], input=[1]).steps.clean().output == ['1']
 
     # Let's fail validation
-    assert DictAdapter(datamap=dict(
+    assert DictAdapter(map=dict(
         name=StringAdapter(cast=False)
     ), input={'name': 1}).steps.validate().errors == dict(name=['Is not a string'])
 
     # Instanciating an adapter sets its state and calls its mutate() step
     a = ModelAdapter(instance=Person())
-    assert a.datamap == dict(name=[CharFieldAdapter()])
+    assert a.map == dict(name=[CharFieldAdapter()])
 
     # Also have a factory to instanciate an Adapter which may adapt to a given state
     assert adapters.factory(queryset=Person.objects.none()).listmap == [PersonAdapter]

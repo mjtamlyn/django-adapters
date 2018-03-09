@@ -81,35 +81,46 @@ How adapters do construction
 ----------------------------
 
 If going through the payloads.factory method for a django model, it will
-automatically return a Payload with a DjangoModelAdapter and fill up its .map
-with other adapters per field::
+automatically return a DjangoModelAdapter::
 
-    p = Payload.factory(instance=Person.objects.get(pk=1))
+    p = adapters.factory(instance=Person.objects.get(pk=1))
+
+Because DjangoModelAdapter was registered in the factory and has this method::
+
+    def adapts(self):
+        return isinstance(self.instance, DjangoModel)
+
+It also has a mutate() method that will be called at the end of instanciation::
+
+    def mutate(self):
+        for field in self.instance._meta.fields:
+            self.map.set(field.name, FieldAdapter(field=field))
+            # or something like the above
 
 Then you can modify the tree::
 
-    # feel free to p.clone() if you see fit, if you have already executed a step
-    # you would probably have to (it's what specifies Marc's writeup, but Ian
-    # suggested we could always return a clone when executing a step)
-    p.map.password_confirm.adapters = [PasswordConfirmFieldAdapter()]
-    assert 'PasswordConfirmationFormAdapter' in p.map.password_confirm.adapters
+    # feel free to p.clone() if you see fit
+    a.map.password_confirm = PasswordConfirmFieldAdapter()
+    a.map.age.clean = [is_numeric, cast_int, greater_than(0)]
 
 Or add another adapter that will add it for you::
 
-    p = p.adapters.add(PasswordConfirmationFormAdapter())
+    a = a.adapters.add(PasswordConfirmationFormAdapter())
     # when added, PasswordConfirmationFormAdapter will add a
-    # PasswordConfirmFieldAdapter in .map.password_confirm.adapters
+    # PasswordConfirmFieldAdapter in .map.password_confirm
 
 In this case, you probably want to add the django FormAdapter::
 
-    p = p.adapters.add('django.Form')
+    a = a.adapters.append(DjangoFormAdapter(state=a.__dict__))
+    # or
+    a = a.adapters.add('django.Form')
 
 Which will add form field adapters to the map. Of course you can also have
 other forms::
 
-    p = p.adapters.add('elementui.Form')
+    a = a.adapters.add('elementui.Form')
 
-We maintain a map of adaptermodule.AdapterClass as strings, this helps having a
+We maintain a map of adapter modules as strings, this helps having a
 certain isomorphism with other languages which can also map their classes to
 the sames, ie. javascript.
 
@@ -119,19 +130,6 @@ Adapters package itself maps primitives to ``.``, so it will register
 But also, ``adapters.django.FormAdapter`` will map to ``django.Form``. This
 means that when it will output itself, it will be able to add its own adapter
 tree dump in a script tag inside the form, and JS can pick it up.
-
-This means you can reconstruct your Python adapter in JavaScript. Of course,
-python's string adapter's validate method will be the same in javascript's
-string adapter validate method. However, it can also export python code as
-bytecode, and Batavia could execute that bytecode on the client too.
-
-Also, you can register your own adapters, both in JS and Python and whatever
-language you need. Obviously, this is going to solve a fair amount of common
-problems with deal with, but of course create new problems too ! But problems
-about code reuse, cross language mappings, are the kind of problems I want to
-deal with, otherwise perhaps I should probably consider more seriously about
-moving to isomorphic Go or Node next year. Friends, let's take all the rabbit
-holes until we end up like Bobby Fischer, for the sport.
 
 Existing Data
 =============
@@ -185,17 +183,18 @@ The factory helps with existing data
 The adapters.factory will try to return the best registered adapter for a data.
 For example::
 
-    assert 'DjangoModel' in Payload.factory(instance=Person()).adapters
+    assert type(adapters.factory(instance=Person())) == ModelAdapter
 
-Or, define your own payload manually or with declarative syntax::
+Or, define your own adapter manually or with declarative syntax::
 
-    class PersonPayload(Payload):
-        name = StringAdapter(...)
+    class PersonAdapter(Adapter):
+        datamap = dict(
+            name=StringAdapter(...)
+        )
 
         class Meta:
             adapters = [PersonWelcomeEmail]
 
-    assert 'StringAdapter' in PersonPayload.map.name.adapters
     # PersonWelcomeEmail will be in PersonAdapter.adapters
 
 New Data
@@ -375,29 +374,21 @@ How cleaning works in adapters
     ]
 
     # only use them for validation
-    p.map.title.steps.validate.adapters = p
+    a.datamap.title.validators = validators
 
-    p.steps.validate(data={}).errors
-
-If these adapters have cleaning capabilities we can add them::
-
-    # use all features of validators
-    p.map.title.adapters = validatiors
-
-    # or just cleaning
-    p.map.title.steps.clean.adapters = validators
+    a.steps.validate(data={'title': 'bannedword'}).errors
 
 To validate or clean at the dict level, don't map it::
 
-    class PasswordConfirmationForm(AdapterInterface):
-        def post_add(self):
+    class PasswordConfirmationForm(Adapter):
+        def mutate(self):
             self.payload.map.password_confirmation.adapters = StringAdapter()
 
         def validate(self):
-            if self.payload.data['password'] != self.payload.data['password_confirmation']:
+            if self.data['password'] != self.data['password_confirmation']:
                 self.errors.append('Passwords not the same')
 
-    p.adapters.add(PasswordConfirmationForm)
+    a = a.add(PasswordConfirmationForm)
 
 Rendering
 =========
@@ -509,31 +500,33 @@ In adapters
 
 .. code-block:: python
 
-    class SendMailAdapter(AdapterInterface):
+    class SendMailAdapter(Adapter):
         def process(self):
             send_mail(
-                subject=self.payload.data['subject'],
-                message=self.payload.data['message'],
+                subject=self.data['subject'],
+                message=self.data['message'],
                 from_email='django@example.com',
-                recipient_list=[self.payload.data['recipient']]
+                recipient_list=[self.data['recipient']]
             )
 
         def response(self):
-            if self.is_valid:
-                self.payload.response = redirect('success_page')
+            if not self.errors:
+                self.response = redirect('success_page')
 
-            self.payload.response = render(
+            self.response = render_to_response(
                 self.payload.request,
                 'send_mail.html',
                 self.payload.rendered
             )
+        response.require_variables = ['request']
 
 
-    p = payloads.factory(SendMailForm)  # DjangoFormAdapter
-    p = p.adapters.add(SendMailAdapter)
-    p = p.steps.validate(request.POST)
-    if not p.errors:
-        p.steps.process()
+    a = adapters.factory(SendMailForm)  # DjangoFormAdapter
+    # chained clonec
+    a = a.add(SendMailAdapter).steps.validate(data=request.POST)
+
+    if not a.errors:
+        a.steps.process()
     return p.steps.response().response
 
     # Of course, you could have a formview step that would do this little logic
@@ -542,21 +535,16 @@ In adapters
 
     class ProcessFormAdapter(DjangoFormAdapter):
         def initialize(self):
-            if self.payload.request and not self.payload.data:
-                self.payload.data = self.payload.request.POST
+            if self.request and not self.data:
+                self.data = self.request.POST
 
-        def response(self):
-            # you could have fed your own data, otherwise we'll figure it out !
-            if not self.payload.data:
+        def response(self):  # this is just poney code to demonstrate
+            if not self.data:
                 # don't clone ! we're in a step !
-                self.payload.steps.initialize(clone=False)
+                self.steps.initialize(clone=False)
 
-            if not self.payload.steps.clean.executed:
-                # but if you haven't then
-                # you'd need to execute the step with request=request so that
-                # it executes with a request being present in the payload
-
-                self.payload.steps.clean(
+            if not self.steps.clean.executed:
+                self.steps.clean(
                     # this step requires payload to have a request !
                     self.payload.request.POST,
                     # we're in a clone already because we're in a step !
@@ -572,8 +560,7 @@ In adapters
                 {'payload': self.payload},
             )
 
-    return Payload(
+    return ProcessFormAdapter(
         request=request,
-        adapters=[SendMailAdapter, ProcessFormAdapter]
+        adapters=[SendMailAdapter],
     ).steps.response().response
-    # oh my god i'm so excited about this

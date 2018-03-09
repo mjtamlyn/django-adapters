@@ -26,33 +26,32 @@ meant for transpilability (webassembly, batavia, pure js ...):
 
 .. code-block:: python
 
-    >>> p = Payload.restore({
-        'adapters': [{'_cls': 'adapters.DictAdapter'}],
+    >>> a = adapters.restore({
+        'adapters': [{'_cls': 'DictAdapter'}],
         'map': {
-            'name': {'_cls': 'adapters.StringAdapter'}
+            'name': {'_cls': 'StringAdapter'}
         }
     })
-    >>> p = p.steps.validate({'name': 'john doe'})
-    >>> not p.errors
+    >>> not a.steps.validate(data={'name': 'john doe'}).errors
     True
 
 But you'd probably be faster with the factory:
 
 .. code-block:: python
 
-    >>> p = Payload.factory({'name': ''})
-    >>> p = p.steps.validate({'name': 'john doe'})
-    >>> not p.errors
+    >>> a = adapters.factory({'name': ''})
+    >>> not a.steps.validate({'name': 'john doe'}).errors
     True
 
-Or don't rely on the factory to map a StringAdapter to the name key:
+Or construct in python yourself:
 
 .. code-block:: python
 
-    >>> p = Payload(adapters=[DictAdapter], map=dict(name=StringAdapter()))
-    >>> p = p.steps.validate({'name': 'john doe'})
-    >>> not p.errors
+    >>> a = DictAdapter(datamap=dict(name=StringAdapter(cast=False)))
+    >>> not a.steps.validate({'name': 'john doe'}).errors
     True
+    >>> a.steps.validate({'name': object()}).errors
+    {'map': ['Not a string']}
 
 `Chainable Validators <https://github.com/Outernet-Project/chainable-validators>`_
 ----------------------------------------------------------------------------------
@@ -71,8 +70,8 @@ In adapters the same example would be:
 
 .. code-block:: python
 
-    >>> a = Payload(adapters=['DictAdapter'], map={
-        'foo': [adapters.Int()],
+    >>> a = DictAdapter(map={
+        'foo': adapters.Int(),
         'bar': [adapters.Regex(r'te.*')],
         'baz': [adapters.Boolean(required=False)],
     })
@@ -81,12 +80,8 @@ But to demonstrate chaining:
 
 .. code-block:: python
 
-    >>> p.map.positiveintstring.adapters = (
-        StringAdapter(),
-        IntAdapter(cast=True),
-        IntAdapter(greater_than=0),
-        StringAdapter() # convert back to string
-    )
+    >>> a.map.positiveintstringfieldname.steps.validate = (
+        is_numeric, int_cast, greater_than(0))
 
 `Colander <http://docs.pylonsproject.org/projects/colander/>`_
 --------------------------------------------------------------

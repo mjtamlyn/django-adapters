@@ -75,6 +75,35 @@ lists.*
         phones = Phones()
 
 
+`django-nap <https://django-nap.readthedocs.io/>`
+-------------------------------------------------
+
+Schema generates from model:
+
+.. code-block:: python
+
+ class QuestionMapper(mapper.ModelMapper):
+     class Meta:
+         model = models.Question
+         fields = '__all__'
+
+Data binding::
+
+	>>> q = Question.objects.first()
+	>>> m = QuestionMapper(q)
+	>>> m.question_text
+	"What's new?"
+	>>> m.pub_date
+	'2017-06-17 05:30:58+00:00'
+
+	>>> m.question_text = "So, what is new?"
+	>>> q.question_text
+	'So, what is new?'
+	>>> m.pub_date = '1975-11-05 23:30:00'
+	>>> q.pub_date
+	datetime.datetime(1975, 11, 5, 23, 30)
+
+
 `formencode.validator <http://www.formencode.org/en/latest/Validator.html>`_
 ----------------------------------------------------------------------------
 *A validation library for Python.*

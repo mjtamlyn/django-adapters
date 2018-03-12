@@ -77,6 +77,22 @@ in turn can be used by different "helper"-APIs like a
 should also have an API to easily create slightly modified (i.e., add this
 field, remove that field, add this validator) clones of itself.
 
+With the years of experience now and a very strong developer ecosystem, we know
+that we need some sort of plugin interface to work with external apps.
+
+It should be able to automatically put their adapter plugin to use based on
+other user configuration. For example, if a field or model has a quack method,
+then the quack plugin should be able to install the quack adapter for the user,
+because the user added the quack method especially for the quack plugin and for
+no other reason so it's completely a complete safe default that will work in
+most cases:
+
+.. code-block::
+
+    factory.register(does_quack, quack_adapter)
+
+    def test_yourmodel_quack_adapts():
+        assert has_quack_adapter(factory(yourmodel))
 
 Existing Data
 =============

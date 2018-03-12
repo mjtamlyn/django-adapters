@@ -28,7 +28,7 @@ serializer. It always precedes the other steps and can't be skipped. Also once
 this step is finished the list of fields that is available to the other steps is
 frozen and *can't be changed* anymore. This means that if you need a differently
 shaped serializer you will have to run this step again. Still, it should be easy
-to modify the set of fields on a per-request basis.
+to modify the set of fields on a per-request basis, during a clone operation.
 
 Validation of any kind, loading and storing data is *not* part of this step, it
 merely constructs an *immutable* data structure that contains and describes all

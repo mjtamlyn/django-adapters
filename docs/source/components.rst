@@ -77,6 +77,59 @@ in turn can be used by different "helper"-APIs like a
 should also have an API to easily create slightly modified (i.e., add this
 field, remove that field, add this validator) clones of itself.
 
+How adapters do construction
+----------------------------
+
+If going through the payloads.factory method for a django model, it will
+automatically return a DjangoModelAdapter::
+
+    p = adapters.factory(instance=Person.objects.get(pk=1))
+
+Because DjangoModelAdapter was registered in the factory and has this method::
+
+    def adapts(self):
+        return isinstance(self.instance, DjangoModel)
+
+It also has a mutate() method that will be called at the end of instanciation::
+
+    def mutate(self):
+        for field in self.instance._meta.fields:
+            self.map.set(field.name, FieldAdapter(field=field))
+            # or something like the above
+
+Then you can modify the tree::
+
+    # feel free to p.clone() if you see fit
+    a.map.password_confirm = PasswordConfirmFieldAdapter()
+    a.map.age.clean = [is_numeric, cast_int, greater_than(0)]
+
+Or add another adapter that will add it for you::
+
+    a = a.adapters.add(PasswordConfirmationFormAdapter())
+    # when added, PasswordConfirmationFormAdapter will add a
+    # PasswordConfirmFieldAdapter in .map.password_confirm
+
+In this case, you probably want to add the django FormAdapter::
+
+    a = a.adapters.append(DjangoFormAdapter(state=a.__dict__))
+    # or
+    a = a.adapters.add('django.Form')
+
+Which will add form field adapters to the map. Of course you can also have
+other forms::
+
+    a = a.adapters.add('elementui.Form')
+
+We maintain a map of adapter modules as strings, this helps having a
+certain isomorphism with other languages which can also map their classes to
+the sames, ie. javascript.
+
+Adapters package itself maps primitives to ``.``, so it will register
+``adapters.strings.String`` to ``.String``.
+
+But also, ``adapters.django.FormAdapter`` will map to ``django.Form``. This
+means that when it will output itself, it will be able to add its own adapter
+tree dump in a script tag inside the form, and JS can pick it up.
 
 Existing Data
 =============
@@ -119,12 +172,30 @@ the ``instance`` argument:
 
     form = MyModelForm(instance=existing_instance)
 
-
 How it could be done
 --------------------
 
 See "How it could be done" on the section "New Data".
 
+The factory helps with existing data
+------------------------------------
+
+The adapters.factory will try to return the best registered adapter for a data.
+For example::
+
+    assert type(adapters.factory(instance=Person())) == ModelAdapter
+
+Or, define your own adapter manually or with declarative syntax::
+
+    class PersonAdapter(Adapter):
+        map = dict(
+            name=StringAdapter(...)
+        )
+
+        class Meta:
+            adapters = [PersonWelcomeEmail]
+
+    # PersonWelcomeEmail will be in PersonAdapter.adapters
 
 New Data
 ========
@@ -171,6 +242,24 @@ the one returned from an HTML form serializer.
 Then an API must be established that lets you modify the loading of existing or
 new data easily.
 
+Data in adapters
+----------------
+
+In terms of data, adapters have several attributes, including::
+
+- instance
+- initial
+- data
+- output
+
+They can be modified during each step, that's why a step returns a clone.
+
+Steps like instanciate or initialize, if executed, may for example fetch data
+from an API or database.
+
+Adapters are a silly tree of python objects and act as shared payload, all the
+logic is executed by steps, you can add your own steps to if the default ones
+are not enough for you.
 
 Cleaning
 ========
@@ -274,6 +363,33 @@ How it could be done
 
 There are several libraries that explicitly deal with validation in Django.
 
+How cleaning works in adapters
+------------------------------
+
+.. code-block:: python
+
+    validators = [
+        validate_illegal_characters,
+        validate_banned_words,
+        lambda context: context.data != 'invalid'
+    ]
+
+    # only use them for validation
+    a.map.title.validate = validators
+
+    a.steps.validate(data={'title': 'bannedword'}).errors
+
+To validate or clean at the dict level, don't map it::
+
+    class PasswordConfirmationForm(Adapter):
+        def mutate(self):
+            self.payload.map.password_confirmation.adapters = StringAdapter()
+
+        def validate(self):
+            if self.data['password'] != self.data['password_confirmation']:
+                self.errors.append('Passwords not the same')
+
+    a = a.add(PasswordConfirmationForm)
 
 Rendering
 =========
@@ -314,6 +430,25 @@ How it could be done
 There are several libraries that deal with rendering and serialization of data
 in Django.
 
+Rendering in adapters
+---------------------
+
+Rendering is an optional step which uses all render methods of adapters and
+which can be decorated or redefined like every step.
+
+That step will populate the payload.rendered variable, in a clone of course as
+with every step execution.
+
+Adapters without the render() method won't be executed. At the end of the day
+of course the step has the final word on what to execute and how, and by
+default it'll try to use the render() method of each adapter, which might in
+turn render its map, by executing the render() metod of each adapter it has in
+its map. Which, in turn, should execute the render() method of every adapters
+composing itself.
+
+We could have more steps than just render() and have render_html(),
+render_json() too, we might even have an RequestResponse adapter which can
+automatically decide if it should return a json or html response.
 
 Data Output
 ===========
@@ -360,3 +495,73 @@ How it could be done
 There should be a way to specify actions that should be executed after all
 previous steps were completed successfully. This makes it easier to encapsulate
 the "Data Output" functionality and reduces duplication of code.
+
+In adapters
+-----------
+
+.. code-block:: python
+
+    class SendMailAdapter(Adapter):
+        def process(self):
+            send_mail(
+                subject=self.data['subject'],
+                message=self.data['message'],
+                from_email='django@example.com',
+                recipient_list=[self.data['recipient']]
+            )
+
+        def response(self):
+            if not self.errors:
+                self.response = redirect('success_page')
+
+            self.response = render_to_response(
+                self.payload.request,
+                'send_mail.html',
+                self.payload.rendered
+            )
+        response.require_variables = ['request']
+
+
+    a = adapters.factory(SendMailForm)  # DjangoFormAdapter
+    # chained clonec
+    a = a.add(SendMailAdapter).steps.validate(data=request.POST)
+
+    if not a.errors:
+        a.steps.process()
+    return p.steps.response().response
+
+    # Of course, you could have a formview step that would do this little logic
+    # with this kind of IOC anything is possible, like, shooting yourself in
+    # the foot
+
+    class ProcessFormAdapter(DjangoFormAdapter):
+        def initialize(self):
+            if self.request and not self.data:
+                self.data = self.request.POST
+
+        def response(self):  # this is just poney code to demonstrate
+            if not self.data:
+                # don't clone ! we're in a step !
+                self.steps.initialize(clone=False)
+
+            if not self.steps.clean.executed:
+                self.steps.clean(
+                    # this step requires payload to have a request !
+                    self.payload.request.POST,
+                    # we're in a clone already because we're in a step !
+                    clone=False
+                )
+
+            if not self.payload.errors:
+                if not self.payload.steps.procces.executed:
+                    self.payload.steps.process(clone=False)
+
+            self.payload.response = render_to_response(
+                self.template_name,
+                {'payload': self.payload},
+            )
+
+    return ProcessFormAdapter(
+        request=request,
+        adapters=[SendMailAdapter],
+    ).steps.response().response

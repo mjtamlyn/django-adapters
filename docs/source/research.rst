@@ -21,6 +21,46 @@ order).
     >>> v.validate(document)
     True
 
+With CerberusAdapter:
+
+.. code-block:: python
+
+    >>> schema = {'name': {'type': 'string'}}
+    >>> document = {'name': 'john doe'}
+    >>> not CerberusAdapter(schema=schema).validate(data=document).errors
+    True
+
+The same system is possible with the dump/restore of Payload feature which is
+meant for transpilability (webassembly, batavia, pure js ...):
+
+.. code-block:: python
+
+    >>> a = adapters.restore({
+        'adapters': [{'_cls': 'DictAdapter'}],
+        'map': {
+            'name': {'_cls': 'StringAdapter'}
+        }
+    })
+    >>> not a.steps.validate(data={'name': 'john doe'}).errors
+    True
+
+But you'd probably be faster with the factory:
+
+.. code-block:: python
+
+    >>> a = adapters.factory({'name': ''})
+    >>> not a.steps.validate({'name': 'john doe'}).errors
+    True
+
+Or construct in python yourself:
+
+.. code-block:: python
+
+    >>> a = DictAdapter(map=dict(name=StringAdapter(cast=False)))
+    >>> not a.steps.validate({'name': 'john doe'}).errors
+    True
+    >>> a.steps.validate({'name': object()}).errors
+    {'map': ['Not a string']}
 
 `Chainable Validators <https://github.com/Outernet-Project/chainable-validators>`_
 ----------------------------------------------------------------------------------
@@ -35,6 +75,22 @@ order).
     ...     'baz': [optional, boolean],
     ... }
 
+In adapters the same example would be:
+
+.. code-block:: python
+
+    >>> a = DictAdapter(map={
+        'foo': adapters.Int(),
+        'bar': [adapters.Regex(r'te.*')],
+        'baz': [adapters.Boolean(required=False)],
+    })
+
+But to demonstrate chaining:
+
+.. code-block:: python
+
+    >>> a.map.positiveintstringfieldname.steps.validate = (
+        is_numeric, int_cast, greater_than(0))
 
 `Colander <http://docs.pylonsproject.org/projects/colander/>`_
 --------------------------------------------------------------

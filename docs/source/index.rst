@@ -13,6 +13,7 @@ Contents:
 
     components
     research
+    validators
 
 
 Indices and tables

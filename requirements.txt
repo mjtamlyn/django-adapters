@@ -1,6 +1,6 @@
 alabaster==0.7.7
 Babel==2.2.0
-Django==1.9.5
+Django==1.11.29
 docutils==0.12
 imagesize==0.7.0
 Jinja2==2.8
